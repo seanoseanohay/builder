@@ -494,50 +494,16 @@ Rules:
     [brief.intake, sdsState, addChatMsg, selectOption, apiKeyValue]
   );
 
-  const lockSection = useCallback(
-    async (secId: string) => {
-      const sec = SD_SECTIONS.find((s) => s.id === secId);
-      const data = sdsState[secId]?.data;
-      const selected = sdsState[secId]?.selectedOption;
-      const chatSummary = (sdsState[secId]?.chatHistory || [])
-        .filter((m) => m.role === "user")
-        .map((m) => m.content)
-        .join("; ");
-
-      const sys = `You are a technical decision recorder. Write a concise Decision Record for this system design choice. Plain text, structured with clear labels. Under 200 words.`;
-      const prompt = `Write a Decision Record for the ${sec?.label} layer of this project.
-
-Project: ${brief.intake?.projectName} for ${brief.intake?.company}
-Section: ${sec?.label}
-CHOSEN: ${selected?.name || "default recommendation"}
-All options considered: ${(data?.options || []).map((o) => `${o.name} (${o.verdict})`).join(", ")}
-Recommendation rationale: ${data?.recommendation || ""}
-Discussion points from review: ${chatSummary || "none — accepted recommendation"}
-
-Format:
-DECISION: [chosen option]
-RATIONALE: [why this was chosen for this specific project]
-ALTERNATIVES CONSIDERED: [what else was evaluated and why rejected]
-TRADE-OFFS ACCEPTED: [what we're giving up]
-REVIEW NOTES: [anything surfaced in discussion]`;
-
-      try {
-        const record = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
-        setSdsState((prev) => ({
-          ...prev,
-          [secId]: {
-            ...prev[secId],
-            status: "locked",
-            decisionRecord: record,
-          },
-        }));
-        persistSession();
-      } catch {
-        // keep button enabled
-      }
-    },
-    [brief.intake, sdsState, persistSession, apiKeyValue]
-  );
+  const lockSection = useCallback((secId: string) => {
+    setSdsState((prev) => ({
+      ...prev,
+      [secId]: {
+        ...prev[secId],
+        status: "locked",
+      },
+    }));
+    persistSession();
+  }, [persistSession]);
 
   const lockedCount = SD_SECTIONS.filter((s) => sdsState[s.id]?.status === "locked").length;
   const totalSections = SD_SECTIONS.length;
@@ -551,11 +517,55 @@ REVIEW NOTES: [anything surfaced in discussion]`;
     const intakeData = intake;
     const inf = brief.inferred || {};
     const companyProfile = brief.companyProfile || "";
+    const decisionRecordSys = `You are a technical decision recorder. Write a concise Decision Record for this system design choice. Plain text, structured with clear labels. Under 200 words.`;
+
+    const newRecords: Record<string, string> = {};
+    for (const sec of SD_SECTIONS) {
+      const s = sdsState[sec.id];
+      if (s?.status !== "locked" || s?.decisionRecord) continue;
+      const data = s.data;
+      const selected = s.selectedOption;
+      const chatSummary = (s.chatHistory || [])
+        .filter((m) => m.role === "user")
+        .map((m) => m.content)
+        .join("; ");
+      const prompt = `Write a Decision Record for the ${sec.label} layer of this project.
+
+Project: ${brief.intake?.projectName} for ${brief.intake?.company}
+Section: ${sec.label}
+CHOSEN: ${selected?.name || "default recommendation"}
+All options considered: ${(data?.options || []).map((o) => `${o.name} (${o.verdict})`).join(", ")}
+Recommendation rationale: ${data?.recommendation || ""}
+Discussion points from review: ${chatSummary || "none — accepted recommendation"}
+
+Format:
+DECISION: [chosen option]
+RATIONALE: [why this was chosen for this specific project]
+ALTERNATIVES CONSIDERED: [what else was evaluated and why rejected]
+TRADE-OFFS ACCEPTED: [what we're giving up]
+REVIEW NOTES: [anything surfaced in discussion]`;
+      try {
+        const record = await callClaudeWithKeyCheck(decisionRecordSys, prompt, apiKeyValue);
+        newRecords[sec.id] = record;
+      } catch {
+        newRecords[sec.id] = `${sec.label}: ${selected?.name || "default"} (record generation failed)`;
+      }
+    }
+
+    setSdsState((prev) => {
+      const next = { ...prev };
+      for (const [id, r] of Object.entries(newRecords)) {
+        next[id] = { ...next[id], decisionRecord: r };
+      }
+      return next;
+    });
+
     const decisionRecords = SD_SECTIONS.map((sec) => {
       const s = sdsState[sec.id];
+      const record = newRecords[sec.id] ?? s?.decisionRecord;
       const chosen = s?.selectedOption?.name || "default";
-      const record = s?.decisionRecord || `${sec.label}: ${chosen} (selected, not yet locked)`;
-      return `### ${sec.label}\n${record}`;
+      const text = record ?? `${sec.label}: ${chosen} (selected, not yet locked)`;
+      return `### ${sec.label}\n${text}`;
     }).join("\n\n");
 
     const sys = `You are a senior product manager. Write a comprehensive, developer-ready PRD in clean markdown format. Be specific, structured, and thorough. This document will be given directly to an AI coding agent to build from.`;
@@ -1080,7 +1090,7 @@ PRD Summary: ${prd.substring(0, 600)}...
 
             {SD_SECTIONS.map((sec) => {
               const sv = sdsState[sec.id];
-              const bodyOpen = openCards.has(`sds-body-${sec.id}`);
+              const bodyOpen = sv?.status !== "locked" || openCards.has(`sds-body-${sec.id}`);
               return (
                 <div
                   key={sec.id}
@@ -1145,13 +1155,15 @@ PRD Summary: ${prd.substring(0, 600)}...
                           </div>
                         </div>
                         <div className="sds-lock-bar">
-                          <button className="lock-btn" onClick={() => lockSection(sec.id)}>✓ Lock Decision</button>
+                          <button className="lock-btn" onClick={() => lockSection(sec.id)}>Lock this decision</button>
                           <span className="lock-hint">Select your preferred option above, debate in chat if needed, then lock to generate the Decision Record.</span>
                         </div>
                       </>
                     )}
-                    {sv?.status === "locked" && sv?.decisionRecord && (
-                      <div className="decision-record">{sv.decisionRecord}</div>
+                    {sv?.status === "locked" && (
+                      <div className="decision-record">
+                        {sv?.decisionRecord ?? "Decision record will be generated when you click Generate PRD below."}
+                      </div>
                     )}
                   </div>
                 </div>

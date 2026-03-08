@@ -836,30 +836,38 @@ select option {
   display: flex;
   align-items: center;
   gap: 12px;
-  background: rgba(0, 217, 163, 0.03);
+  background: var(--surface2);
+  border-top: 1px solid var(--border);
 }
 
 .lock-btn {
-  background: var(--accent3);
-  border: none;
-  color: #000;
+  background: transparent;
+  border: 2px solid var(--accent);
+  color: var(--accent);
   font-family: var(--font-mono);
   font-size: 12px;
   font-weight: 600;
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s, transform 0.1s;
   white-space: nowrap;
 }
 
 .lock-btn:hover {
-  background: #00f0b5;
+  background: rgba(108, 99, 255, 0.15);
+  color: #fff;
+}
+
+.lock-btn:active {
+  transform: scale(0.97);
+  background: rgba(108, 99, 255, 0.25);
 }
 
 .lock-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .lock-hint {
