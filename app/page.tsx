@@ -98,12 +98,14 @@ export default function Home() {
   const [showApiKeyPanel, setShowApiKeyPanel] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [apiKeySavedFeedback, setApiKeySavedFeedback] = useState(false);
+  const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
   const savedSessionRef = useRef<SavedSession | null>(null);
 
   const callClaudeWithKeyCheck = useCallback(
     async (systemPrompt: string, userPrompt: string, keyFromInput?: string): Promise<string> => {
       if (keyFromInput?.trim() && !getStoredApiKeyIfSet()) {
         setStoredApiKey(keyFromInput);
+        setHasStoredApiKey(true);
       }
       setApiKeyError(null);
       try {
@@ -142,7 +144,9 @@ export default function Home() {
   }, [brief, sdsState, completedSteps, currentStep, prd, plan]);
 
   useEffect(() => {
-    if (!getStoredApiKeyIfSet()) setShowApiKeyPanel(true);
+    const stored = !!getStoredApiKeyIfSet();
+    setHasStoredApiKey(stored);
+    if (!stored) setShowApiKeyPanel(true);
   }, []);
 
   useEffect(() => {
@@ -808,7 +812,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             onClick={() => setShowApiKeyPanel((v) => !v)}
             aria-expanded={showApiKeyPanel}
           >
-            {getStoredApiKeyIfSet() ? "✓ API key saved (persists in this browser)" : "⚙ Add your Anthropic API key (for demo)"}
+            {hasStoredApiKey ? "✓ API key saved (persists in this browser)" : "⚙ Add your Anthropic API key (for demo)"}
           </button>
           {showApiKeyPanel && (
             <div className="api-key-panel">
@@ -842,6 +846,7 @@ PRD Summary: ${prd.substring(0, 600)}...
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       setStoredApiKey(apiKeyValue);
+                      setHasStoredApiKey(!!apiKeyValue.trim());
                       setApiKeyValue("");
                       setApiKeyError(null);
                       setApiKeySavedFeedback(true);
@@ -855,6 +860,7 @@ PRD Summary: ${prd.substring(0, 600)}...
                   style={{ padding: "8px 16px", fontSize: 12 }}
                   onClick={() => {
                     setStoredApiKey(apiKeyValue);
+                    setHasStoredApiKey(!!apiKeyValue.trim());
                     setApiKeyValue("");
                     setApiKeyError(null);
                     setApiKeySavedFeedback(true);
@@ -863,13 +869,14 @@ PRD Summary: ${prd.substring(0, 600)}...
                 >
                   Save (persists until you clear it)
                 </button>
-                {getStoredApiKeyIfSet() && (
+                {hasStoredApiKey && (
                   <button
                     type="button"
                     className="btn btn-secondary"
                     style={{ padding: "8px 16px", fontSize: 12 }}
                     onClick={() => {
                       setStoredApiKey(null);
+                      setHasStoredApiKey(false);
                       setApiKeyValue("");
                       setApiKeyError(null);
                       setApiKeySavedFeedback(false);
