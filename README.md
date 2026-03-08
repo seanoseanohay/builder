@@ -19,7 +19,7 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
-**API key:** You can either set `ANTHROPIC_API_KEY` in `.env.local` (so you never type it in the app), or leave it unset and **add your key in the app** (header: “Add your Anthropic API key”). The in-app key is stored only in that browser tab (sessionStorage) and is sent with each request.
+**API key:** You can either set `ANTHROPIC_API_KEY` in `.env.local` (so you never type it in the app), or leave it unset and **add your key in the app** (header: “Add your Anthropic API key”). The in-app key is stored only in that browser tab (sessionStorage) and is sent with each request. Do not commit `.env.local` or any file with real keys—`.env*` is gitignored.
 
 ## Deploy on Vercel (safe for demos)
 
