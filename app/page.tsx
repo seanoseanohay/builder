@@ -101,7 +101,10 @@ export default function Home() {
   const savedSessionRef = useRef<SavedSession | null>(null);
 
   const callClaudeWithKeyCheck = useCallback(
-    async (systemPrompt: string, userPrompt: string): Promise<string> => {
+    async (systemPrompt: string, userPrompt: string, keyFromInput?: string): Promise<string> => {
+      if (keyFromInput?.trim() && !getStoredApiKeyIfSet()) {
+        setStoredApiKey(keyFromInput);
+      }
       setApiKeyError(null);
       try {
         return await callClaude(systemPrompt, userPrompt);
@@ -244,7 +247,8 @@ Return JSON with these keys:
 - targetUsers: array of strings (who will actually use this — be specific based on the company's domain)
 - domain: string (the business domain e.g. "EdTech / AI Tutoring", "FinTech", "Healthcare", "Developer Tools")
 
-JSON only:`
+JSON only:`,
+        apiKeyValue
       );
       const parsed = safeParseJSON<Inferred>(result.replace(/```json|```/gi, "").trim());
       setBrief((b) => ({ ...b, inferred: parsed, intake }));
@@ -253,7 +257,7 @@ JSON only:`
       setInferredVisible(true);
     }
     setInferLoading(false);
-  }, [intake]);
+  }, [intake, apiKeyValue]);
 
   const analyzeSection = useCallback(
     async (secId: string) => {
@@ -304,7 +308,7 @@ Rules:
 - Be opinionated. A staff engineer is presenting this at a design review.`;
 
       try {
-        const raw = await callClaudeWithKeyCheck(sys, prompt);
+        const raw = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
         const parsed = safeParseJSON<SDSData>(raw);
         setSdsState((prev) => {
           const sectionState = prev[secId] || {
@@ -347,7 +351,7 @@ Rules:
         }));
       }
     },
-    [brief, sdsState, persistSession]
+    [brief, sdsState, persistSession, apiKeyValue]
   );
 
   const runResearch = useCallback(async () => {
@@ -366,7 +370,8 @@ Rules:
       try {
         const r = await callClaudeWithKeyCheck(
           `Extract key facts from a project intake as JSON. Return ONLY valid JSON, no markdown.`,
-          `Company: ${intake.company}\nProject: ${intake.projectName}\nProblem: ${intake.problemStatement}\nRequirements: ${intake.functionalReqs}\nLanguages: ${intake.languages}\n\nReturn JSON: { "projectType": string, "stack": string[], "constraints": string[], "integrations": string[], "targetUsers": string[], "domain": string }`
+          `Company: ${intake.company}\nProject: ${intake.projectName}\nProblem: ${intake.problemStatement}\nRequirements: ${intake.functionalReqs}\nLanguages: ${intake.languages}\n\nReturn JSON: { "projectType": string, "stack": string[], "constraints": string[], "integrations": string[], "targetUsers": string[], "domain": string }`,
+          apiKeyValue
         );
         inferred = safeParseJSON<Inferred>(r);
         setBrief((b) => ({ ...b, inferred, intake }));
@@ -387,7 +392,8 @@ Rules:
     try {
       companyProfile = await callClaudeWithKeyCheck(
         `Write a concise company profile from what you know or can reasonably infer. Plain text only.`,
-        `Company: ${intake.company}\nWebsite: ${intake.website || "not provided"}\nProject context: ${intake.projectName} — ${intake.problemStatement.substring(0, 300)}\n\nCover: what they do, their market, their users, their product philosophy, their stage, how this project fits their mission.`
+        `Company: ${intake.company}\nWebsite: ${intake.website || "not provided"}\nProject context: ${intake.projectName} — ${intake.problemStatement.substring(0, 300)}\n\nCover: what they do, their market, their users, their product philosophy, their stage, how this project fits their mission.`,
+        apiKeyValue
       );
       setBrief((b) => ({ ...b, companyProfile }));
     } catch {
@@ -399,7 +405,7 @@ Rules:
     setSdsState(getEmptySdsState());
 
     SD_SECTIONS.forEach((sec) => analyzeSection(sec.id));
-  }, [intake, brief.inferred, brief.companyProfile, analyzeSection, goToStep]);
+  }, [intake, brief.inferred, brief.companyProfile, analyzeSection, goToStep, apiKeyValue]);
 
   const selectOption = useCallback((secId: string, index: number, name: string) => {
     setSdsState((prev) => ({
@@ -446,7 +452,8 @@ Rules:
       try {
         const reply = await callClaudeWithKeyCheck(
           sys,
-          `${contextPrefix}\n\n${messages.map((m) => m.role + ": " + m.content).join("\n")}`
+          `${contextPrefix}\n\n${messages.map((m) => m.role + ": " + m.content).join("\n")}`,
+          apiKeyValue
         );
         addChatMsg(secId, "ai", reply);
         const optNames = (data?.options || []).map((o) => o.name.toLowerCase());
@@ -466,7 +473,7 @@ Rules:
         addChatMsg(secId, "ai", `Sorry, hit an error: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [brief.intake, sdsState, addChatMsg, selectOption]
+    [brief.intake, sdsState, addChatMsg, selectOption, apiKeyValue]
   );
 
   const lockSection = useCallback(
@@ -497,7 +504,7 @@ TRADE-OFFS ACCEPTED: [what we're giving up]
 REVIEW NOTES: [anything surfaced in discussion]`;
 
       try {
-        const record = await callClaudeWithKeyCheck(sys, prompt);
+        const record = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
         setSdsState((prev) => ({
           ...prev,
           [secId]: {
@@ -511,7 +518,7 @@ REVIEW NOTES: [anything surfaced in discussion]`;
         // keep button enabled
       }
     },
-    [brief.intake, sdsState, persistSession]
+    [brief.intake, sdsState, persistSession, apiKeyValue]
   );
 
   const lockedCount = SD_SECTIONS.filter((s) => sdsState[s.id]?.status === "locked").length;
@@ -581,7 +588,7 @@ The PRD must include:
 Format as clean markdown with proper headers.`;
 
     try {
-      const prdText = await callClaudeWithKeyCheck(sys, prompt);
+      const prdText = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
       setPrd(prdText);
       setPrdOutputVisible(true);
       persistSession();
@@ -590,7 +597,7 @@ Format as clean markdown with proper headers.`;
       setPrdOutputVisible(true);
     }
     setPrdLoading(false);
-  }, [brief, intake, sdsState, goToStep, persistSession]);
+  }, [brief, intake, sdsState, goToStep, persistSession, apiKeyValue]);
 
   const runExecutionPlan = useCallback(async () => {
     setCompletedSteps((s) => new Set([...Array.from(s), 3]));
@@ -629,31 +636,38 @@ PRD Summary: ${prd.substring(0, 600)}...
         await Promise.all([
           callClaudeWithKeyCheck(
             sys,
-            `Write a detailed phased EXECUTION PLAN in markdown for this project. Include 4-6 phases. For each phase: phase name, goal, list of specific tasks with checkboxes, estimated complexity (S/M/L), dependencies, and definition of done. End with a "Quick Start" section — the exact first 3 commands or actions to run.\n\nContext:\n${context}`
+            `Write a detailed phased EXECUTION PLAN in markdown for this project. Include 4-6 phases. For each phase: phase name, goal, list of specific tasks with checkboxes, estimated complexity (S/M/L), dependencies, and definition of done. End with a "Quick Start" section — the exact first 3 commands or actions to run.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`
+            `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`
+            `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`
+            `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`
+            `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`
+            `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
           callClaudeWithKeyCheck(
             sys,
-            `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`
+            `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
+            apiKeyValue
           ),
         ]);
 
@@ -674,7 +688,7 @@ PRD Summary: ${prd.substring(0, 600)}...
       setPlanOutputVisible(true);
     }
     setPlanLoading(false);
-  }, [brief, sdsState, prd, goToStep, persistSession]);
+  }, [brief, sdsState, prd, goToStep, persistSession, apiKeyValue]);
 
   const downloadAll = useCallback(() => {
     const files: [string, string][] = [
@@ -766,7 +780,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             onClick={() => setShowApiKeyPanel((v) => !v)}
             aria-expanded={showApiKeyPanel}
           >
-            {getStoredApiKeyIfSet() ? "✓ API key set for this session" : "⚙ Add your Anthropic API key (for demo)"}
+            {getStoredApiKeyIfSet() ? "✓ API key saved (persists in this browser)" : "⚙ Add your Anthropic API key (for demo)"}
           </button>
           {showApiKeyPanel && (
             <div className="api-key-panel">
@@ -777,7 +791,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               )}
               {apiKeySavedFeedback && (
                 <div className="alert alert-success" style={{ marginBottom: 12 }}>
-                  Key saved. Use &quot;Preview Inferred Details&quot; or &quot;Run Research &amp; Continue&quot; below—the app will use this key.
+                  Key saved. It will persist in this browser so you don&apos;t have to re-enter it. Use &quot;Preview Inferred Details&quot; or &quot;Run Research &amp; Continue&quot; below.
                 </div>
               )}
               <p className="section-desc" style={{ marginBottom: 12 }}>
@@ -785,7 +799,7 @@ PRD Summary: ${prd.substring(0, 600)}...
                 <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>console.anthropic.com</a>.
               </p>
               <div className="trust-note">
-                <strong>Trust &amp; privacy</strong> — Your key is kept only in this browser tab (sessionStorage), not on our server. With each request we forward it directly to Anthropic and do not log or store it. You can verify this in the source: <code>app/api/claude/route.ts</code>.
+                <strong>Trust &amp; privacy</strong> — Your key is stored only in this browser (localStorage) and is not sent to our server except to forward each request to Anthropic. We do not log or store it. You can verify this in the source: <code>app/api/claude/route.ts</code>.
               </div>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                 <input
@@ -819,7 +833,7 @@ PRD Summary: ${prd.substring(0, 600)}...
                     setTimeout(() => setApiKeySavedFeedback(false), 5000);
                   }}
                 >
-                  Save for this session
+                  Save (persists until you clear it)
                 </button>
                 {getStoredApiKeyIfSet() && (
                   <button

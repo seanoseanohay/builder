@@ -20,7 +20,7 @@ function drain() {
 function getStoredApiKey(): string | null {
   if (typeof window === "undefined") return null;
   try {
-    return window.sessionStorage.getItem(STORAGE_KEY)?.trim() || null;
+    return window.localStorage.getItem(STORAGE_KEY)?.trim() || null;
   } catch {
     return null;
   }
@@ -34,9 +34,9 @@ export function setStoredApiKey(key: string | null): void {
   if (typeof window === "undefined") return;
   try {
     if (key == null || key.trim() === "") {
-      window.sessionStorage.removeItem(STORAGE_KEY);
+      window.localStorage.removeItem(STORAGE_KEY);
     } else {
-      window.sessionStorage.setItem(STORAGE_KEY, key.trim());
+      window.localStorage.setItem(STORAGE_KEY, key.trim());
     }
   } catch {
     // ignore
