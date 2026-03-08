@@ -408,13 +408,31 @@ Rules:
   }, [intake, brief.inferred, brief.companyProfile, analyzeSection, goToStep, apiKeyValue]);
 
   const selectOption = useCallback((secId: string, index: number, name: string) => {
-    setSdsState((prev) => ({
-      ...prev,
-      [secId]: {
-        ...prev[secId],
-        selectedOption: { index, name },
-      },
-    }));
+    setSdsState((prev) => {
+      const current = prev[secId];
+      const wasLocked = current?.status === "locked";
+      const selectionChanged =
+        current?.selectedOption?.index !== index || current?.selectedOption?.name !== name;
+      const shouldUnlock = wasLocked && selectionChanged;
+      const sec = SD_SECTIONS.find((s) => s.id === secId);
+      const newChatSeed = sec
+        ? [{ role: "assistant" as const, content: `You've selected ${name} for ${sec.label.toLowerCase()}. Ask me why, push back, or lock this decision when ready.` }]
+        : [];
+      return {
+        ...prev,
+        [secId]: {
+          ...prev[secId],
+          selectedOption: { index, name },
+          ...(shouldUnlock
+            ? {
+                status: "ready",
+                decisionRecord: undefined,
+                chatHistory: newChatSeed,
+              }
+            : {}),
+        },
+      };
+    });
   }, []);
 
   const addChatMsg = useCallback((secId: string, role: string, text: string) => {
