@@ -97,6 +97,7 @@ export default function Home() {
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [showApiKeyPanel, setShowApiKeyPanel] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
+  const [apiKeySavedFeedback, setApiKeySavedFeedback] = useState(false);
   const savedSessionRef = useRef<SavedSession | null>(null);
 
   const callClaudeWithKeyCheck = useCallback(
@@ -774,8 +775,13 @@ PRD Summary: ${prd.substring(0, 600)}...
                   {apiKeyError}
                 </div>
               )}
+              {apiKeySavedFeedback && (
+                <div className="alert alert-success" style={{ marginBottom: 12 }}>
+                  Key saved. Use &quot;Preview Inferred Details&quot; or &quot;Run Research &amp; Continue&quot; below—the app will use this key.
+                </div>
+              )}
               <p className="section-desc" style={{ marginBottom: 12 }}>
-                To use this app without a server-side key, paste your Anthropic API key. Get a key at{" "}
+                Paste your Anthropic API key below and click Save. The app will use it for the next action (e.g. Run Research). Get a key at{" "}
                 <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>console.anthropic.com</a>.
               </p>
               <div className="trust-note">
@@ -791,7 +797,15 @@ PRD Summary: ${prd.substring(0, 600)}...
                     setApiKeyValue(e.target.value);
                     setApiKeyError(null);
                   }}
-                  onKeyDown={(e) => e.key === "Enter" && (setStoredApiKey(apiKeyValue), setApiKeyValue(""), setApiKeyError(null))}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      setStoredApiKey(apiKeyValue);
+                      setApiKeyValue("");
+                      setApiKeyError(null);
+                      setApiKeySavedFeedback(true);
+                      setTimeout(() => setApiKeySavedFeedback(false), 5000);
+                    }
+                  }}
                 />
                 <button
                   type="button"
@@ -801,6 +815,8 @@ PRD Summary: ${prd.substring(0, 600)}...
                     setStoredApiKey(apiKeyValue);
                     setApiKeyValue("");
                     setApiKeyError(null);
+                    setApiKeySavedFeedback(true);
+                    setTimeout(() => setApiKeySavedFeedback(false), 5000);
                   }}
                 >
                   Save for this session
@@ -814,6 +830,7 @@ PRD Summary: ${prd.substring(0, 600)}...
                       setStoredApiKey(null);
                       setApiKeyValue("");
                       setApiKeyError(null);
+                      setApiKeySavedFeedback(false);
                     }}
                   >
                     Clear key
