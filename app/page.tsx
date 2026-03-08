@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import JSZip from "jszip";
 import { callClaude, getStoredApiKeyIfSet, setStoredApiKey } from "@/lib/api";
 import { safeParseJSON } from "@/lib/json";
 import { loadSession, saveSession, deleteSession } from "@/lib/session";
@@ -722,7 +723,7 @@ PRD Summary: ${prd.substring(0, 600)}...
     setPlanLoading(false);
   }, [brief, sdsState, prd, goToStep, persistSession, apiKeyValue]);
 
-  const downloadAll = useCallback(() => {
+  const downloadAll = useCallback(async () => {
     const files: [string, string][] = [
       ["PRD.md", prd],
       ["PLAN.md", plan.plan || ""],
@@ -733,16 +734,17 @@ PRD Summary: ${prd.substring(0, 600)}...
       ["memory-bank/activeContext.md", plan.activecontext || ""],
       ["memory-bank/progress.md", plan.progressfile || ""],
     ];
-    files.forEach(([filename, content]) => {
-      if (!content) return;
-      const blob = new Blob([content], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = filename.split("/").pop() || "file.md";
-      a.click();
-      URL.revokeObjectURL(url);
-    });
+    const zip = new JSZip();
+    for (const [filename, content] of files) {
+      if (content) zip.file(filename, content);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "ProjectBundle.zip";
+    a.click();
+    URL.revokeObjectURL(url);
   }, [prd, plan]);
 
   const startOver = useCallback(() => {
@@ -1338,7 +1340,7 @@ PRD Summary: ${prd.substring(0, 600)}...
 
         <div className="download-all-card">
           <h3>📦 Download All Files</h3>
-          <p>Get all generated files ready to drop into your project folder (each file downloads separately).</p>
+          <p>Get all generated files in one ZIP. Unzip into your project folder to add PRD, plan, and memory-bank files.</p>
           <button className="btn btn-success" onClick={downloadAll}>⬇ Download Project Bundle</button>
         </div>
 
