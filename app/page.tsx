@@ -4,14 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
 import { callClaude, callClaudeStream, getStoredApiKeyIfSet, setStoredApiKey } from "@/lib/api";
 import { safeParseJSON } from "@/lib/json";
+import {
+  buildInitialSdsState,
+  CORE_RESEARCH_SECTIONS,
+  getResearchGrounding,
+  mergeResearchSections,
+} from "@/lib/research";
 import { loadSession, saveSession, deleteSession } from "@/lib/session";
-import { SD_SECTIONS, SECTION_PROMPTS } from "@/lib/sections";
+import { SECTION_PROMPTS } from "@/lib/sections";
 import type {
   AppState,
   BriefState,
   Intake,
   Inferred,
+  PartnerResearch,
   PlanState,
+  ResearchSection,
   SDSData,
   SDSStateSection,
   SavedSession,
@@ -62,24 +70,14 @@ Target Users: ${(inferred.targetUsers || []).join(", ") || "TBD"}`
 `.trim();
 }
 
-function getEmptySdsState(): Record<string, SDSStateSection> {
-  const out: Record<string, SDSStateSection> = {};
-  SD_SECTIONS.forEach((sec) => {
-    out[sec.id] = {
-      status: "pending",
-      chatHistory: [],
-      selectedOption: null,
-    };
-  });
-  return out;
-}
-
 export default function Home() {
   const [intake, setIntake] = useState<Intake>(initialIntake);
   const [brief, setBrief] = useState<BriefState>({});
   const [prd, setPrd] = useState("");
   const [plan, setPlan] = useState<PlanState>({});
-  const [sdsState, setSdsState] = useState<Record<string, SDSStateSection>>(getEmptySdsState);
+  const [sdsState, setSdsState] = useState<Record<string, SDSStateSection>>(() =>
+    buildInitialSdsState(CORE_RESEARCH_SECTIONS)
+  );
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [currentStep, setCurrentStep] = useState(1);
   const [openCards, setOpenCards] = useState<Set<string>>(new Set(["prd-full", "ep-plan"]));
@@ -89,6 +87,7 @@ export default function Home() {
     "Researching company and analyzing system requirements..."
   );
   const [researchOutputVisible, setResearchOutputVisible] = useState(false);
+  const [researchError, setResearchError] = useState<string | null>(null);
   const [prdLoading, setPrdLoading] = useState(false);
   const [prdOutputVisible, setPrdOutputVisible] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
@@ -102,6 +101,7 @@ export default function Home() {
   const [apiKeySavedFeedback, setApiKeySavedFeedback] = useState(false);
   const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
   const savedSessionRef = useRef<SavedSession | null>(null);
+  const researchSections = mergeResearchSections(CORE_RESEARCH_SECTIONS, brief.discoveredSections || []);
 
   const callClaudeWithKeyCheck = useCallback(
     async (systemPrompt: string, userPrompt: string, keyFromInput?: string): Promise<string> => {
@@ -126,7 +126,7 @@ export default function Home() {
 
   const persistSession = useCallback(() => {
     const snap: Record<string, Partial<SDSStateSection>> = {};
-    SD_SECTIONS.forEach((sec) => {
+    researchSections.forEach((sec) => {
       const s = sdsState[sec.id];
       if (s)
         snap[sec.id] = {
@@ -143,7 +143,7 @@ export default function Home() {
       completedSteps: Array.from(completedSteps),
       currentStep,
     });
-  }, [brief, sdsState, completedSteps, currentStep, prd, plan]);
+  }, [brief, sdsState, completedSteps, currentStep, prd, plan, researchSections]);
 
   useEffect(() => {
     const stored = !!getStoredApiKeyIfSet();
@@ -164,6 +164,11 @@ export default function Home() {
     savedSessionRef.current = saved;
   }, []);
 
+  useEffect(() => {
+    if (!brief.intake?.company) return;
+    persistSession();
+  }, [brief, sdsState, completedSteps, currentStep, prd, plan, persistSession]);
+
   const restoreSession = useCallback(() => {
     const saved = savedSessionRef.current;
     if (!saved) return;
@@ -172,10 +177,15 @@ export default function Home() {
     setIntake(saved.state.brief?.intake || initialIntake);
     setPrd(saved.state.prd || "");
     setPlan(saved.state.plan || {});
+    setResearchError(null);
     setCompletedSteps(new Set(saved.completedSteps || []));
     setCurrentStep(saved.currentStep || 1);
     if (saved.snap) {
-      const next: Record<string, SDSStateSection> = getEmptySdsState();
+      const restoredSections = mergeResearchSections(
+        CORE_RESEARCH_SECTIONS,
+        saved.state.brief?.discoveredSections || []
+      );
+      const next: Record<string, SDSStateSection> = buildInitialSdsState(restoredSections);
       Object.entries(saved.snap).forEach(([k, v]) => {
         if (next[k]) {
           next[k] = { ...next[k], ...v, chatHistory: v.chatHistory || [] };
@@ -266,10 +276,30 @@ JSON only:`,
   }, [intake, apiKeyValue]);
 
   const analyzeSection = useCallback(
-    async (secId: string) => {
-      const sec = SD_SECTIONS.find((s) => s.id === secId);
+    async (
+      secId: string,
+      contextOverride?: {
+        intake: Intake;
+        companyProfile?: string;
+        partnerResearch?: PartnerResearch;
+        discoveredSections?: ResearchSection[];
+      }
+    ) => {
+      const availableSections = contextOverride?.discoveredSections
+        ? mergeResearchSections(CORE_RESEARCH_SECTIONS, contextOverride.discoveredSections)
+        : researchSections;
+      const sec = availableSections.find((s) => s.id === secId);
       if (!sec) return;
-      const companyProfile = brief.companyProfile || "";
+      const intakeContext = contextOverride?.intake || brief.intake || intake;
+      const companyProfile =
+        contextOverride?.companyProfile ||
+        contextOverride?.partnerResearch?.summary ||
+        brief.companyProfile ||
+        "";
+      const partnerResearch = contextOverride?.partnerResearch || brief.partnerResearch;
+      const discoveredSectionSummary = (contextOverride?.discoveredSections || brief.discoveredSections || [])
+        .map((section) => `${section.label} (${section.priority}) — ${section.reason}`)
+        .join("\n");
       setSdsState((prev) => ({
         ...prev,
         [secId]: {
@@ -279,18 +309,26 @@ JSON only:`,
       }));
 
       const contextBlock = `
-COMPANY: ${brief.intake?.company}
+COMPANY: ${intakeContext.company}
 COMPANY PROFILE: ${companyProfile}
-PROJECT: ${brief.intake?.projectName}
-PROBLEM: ${brief.intake?.problemStatement}
-REQUIREMENTS: ${brief.intake?.functionalReqs}
-GIVEN STACK HINTS: ${brief.intake?.languages || "none"}
-NOTES: ${brief.intake?.additionalNotes || "none"}
+PROJECT: ${intakeContext.projectName}
+PROBLEM: ${intakeContext.problemStatement}
+REQUIREMENTS: ${intakeContext.functionalReqs}
+GIVEN STACK HINTS: ${intakeContext.languages || "none"}
+NOTES: ${intakeContext.additionalNotes || "none"}
+PARTNER DOMAIN: ${partnerResearch?.domain || brief.inferred?.domain || "unknown"}
+PARTNER USERS: ${(partnerResearch?.targetUsers || brief.inferred?.targetUsers || []).join(", ") || "unknown"}
+PARTNER PRODUCTS: ${(partnerResearch?.products || []).join(", ") || "unknown"}
+PARTNER CONSTRAINTS: ${(partnerResearch?.constraints || brief.inferred?.constraints || []).join(", ") || "none"}
+DISCOVERED LAYERS:
+${discoveredSectionSummary || "none"}
 `.trim();
 
       const sys = `You are a senior system architect doing a system design review. You understand the company's context deeply. Return ONLY valid JSON — no markdown, no extra text. Be opinionated and specific.`;
+      const basePrompt = SECTION_PROMPTS[secId as keyof typeof SECTION_PROMPTS];
+      const dynamicPrompt = `Perform a SYSTEM DESIGN analysis for the ${sec.label.toUpperCase()} layer. Evaluate realistic implementation options for this layer in the context of this project. Use technical criteria only: data flow, latency, throughput, failure modes, consistency, observability, security, scale, and operational risk. Pay close attention to why this layer is needed: ${sec.reason}.`;
 
-      const prompt = `${SECTION_PROMPTS[secId as keyof typeof SECTION_PROMPTS]}
+      const prompt = `${basePrompt || dynamicPrompt}
 
 Project context:
 ${contextBlock}
@@ -357,7 +395,7 @@ Rules:
         }));
       }
     },
-    [brief, sdsState, persistSession, apiKeyValue]
+    [brief, intake, persistSession, apiKeyValue, researchSections]
   );
 
   const runResearch = useCallback(async () => {
@@ -365,53 +403,97 @@ Rules:
       alert("Please fill in at least Company Name and Problem Statement.");
       return;
     }
-    setBrief((b) => ({ ...b, intake }));
     setCompletedSteps((s) => new Set([...Array.from(s), 1]));
     goToStep(2);
     setResearchOutputVisible(false);
-    setResearchLoadingText("Researching " + intake.company + "...");
+    setResearchError(null);
+    setResearchLoadingText(`Researching ${intake.company} and discovering required system layers...`);
 
-    let inferred = brief.inferred;
-    if (!inferred) {
-      try {
-        const r = await callClaudeWithKeyCheck(
-          `Extract key facts from a project intake as JSON. Return ONLY valid JSON, no markdown.`,
-          `Company: ${intake.company}\nProject: ${intake.projectName}\nProblem: ${intake.problemStatement}\nRequirements: ${intake.functionalReqs}\nLanguages: ${intake.languages}\n\nReturn JSON: { "projectType": string, "stack": string[], "constraints": string[], "integrations": string[], "targetUsers": string[], "domain": string }`,
-          apiKeyValue
-        );
-        inferred = safeParseJSON<Inferred>(r);
-        setBrief((b) => ({ ...b, inferred, intake }));
-      } catch {
-        inferred = {
-          projectType: "Software Project",
-          stack: [intake.languages],
-          constraints: [],
-          integrations: [],
-          targetUsers: [],
-          domain: "Software",
-        };
-        setBrief((b) => ({ ...b, inferred, intake }));
-      }
+    if (apiKeyValue?.trim() && !getStoredApiKeyIfSet()) {
+      setStoredApiKey(apiKeyValue);
+      setHasStoredApiKey(true);
     }
+    setApiKeyError(null);
 
-    let companyProfile = brief.companyProfile || "";
     try {
-      companyProfile = await callClaudeWithKeyCheck(
-        `Write a concise company profile from what you know or can reasonably infer. Plain text only.`,
-        `Company: ${intake.company}\nWebsite: ${intake.website || "not provided"}\nProject context: ${intake.projectName} — ${intake.problemStatement.substring(0, 300)}\n\nCover: what they do, their market, their users, their product philosophy, their stage, how this project fits their mission.`,
-        apiKeyValue
+      const apiKey = getStoredApiKeyIfSet();
+      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      if (apiKey) headers["X-Anthropic-API-Key"] = apiKey;
+
+      const response = await fetch("/api/research", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          intake,
+          apiKey: apiKey || apiKeyValue || undefined,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        inferred?: Inferred;
+        partnerResearch?: PartnerResearch;
+        discoveredSections?: ResearchSection[];
+      };
+
+      if (!response.ok) {
+        const message = data.error || `Research error: ${response.status}`;
+        if (response.status === 401) {
+          setApiKeyError(message);
+          setShowApiKeyPanel(true);
+        }
+        throw new Error(message);
+      }
+
+      const inferred = data.inferred || {
+        projectType: "Software Project",
+        stack: intake.languages ? [intake.languages] : [],
+        constraints: [],
+        integrations: [],
+        targetUsers: [],
+        domain: "Software",
+      };
+      const partnerResearch = data.partnerResearch || {
+        summary: `${intake.company} — proceeding from project context.`,
+        domain: inferred.domain,
+        targetUsers: inferred.targetUsers,
+        constraints: inferred.constraints,
+        sources: [{ type: "intake", label: "Project intake" }],
+      };
+      const discoveredSections = data.discoveredSections || [];
+      const nextBrief: BriefState = {
+        intake,
+        inferred,
+        companyProfile: partnerResearch.summary,
+        partnerResearch,
+        discoveredSections,
+      };
+      const mergedSections = mergeResearchSections(CORE_RESEARCH_SECTIONS, discoveredSections);
+
+      setBrief(nextBrief);
+      setResearchLoadingText("Generating alternatives for each required layer...");
+      setResearchOutputVisible(true);
+      setSdsState((prev) => {
+        const next = { ...buildInitialSdsState(mergedSections) };
+        Object.entries(prev).forEach(([id, value]) => {
+          if (next[id]) next[id] = value;
+        });
+        return next;
+      });
+
+      mergedSections.forEach((sec) =>
+        analyzeSection(sec.id, {
+          intake,
+          companyProfile: partnerResearch.summary,
+          partnerResearch,
+          discoveredSections,
+        })
       );
-      setBrief((b) => ({ ...b, companyProfile }));
-    } catch {
-      companyProfile = `${intake.company} — proceeding from project context.`;
+    } catch (e) {
+      setResearchError(e instanceof Error ? e.message : String(e));
+      setResearchOutputVisible(false);
     }
-
-    setResearchLoadingText("Researching company and analyzing system requirements...");
-    setResearchOutputVisible(true);
-    setSdsState(getEmptySdsState());
-
-    SD_SECTIONS.forEach((sec) => analyzeSection(sec.id));
-  }, [intake, brief.inferred, brief.companyProfile, analyzeSection, goToStep, apiKeyValue]);
+  }, [intake, analyzeSection, goToStep, apiKeyValue]);
 
   const selectOption = useCallback((secId: string, index: number, name: string) => {
     setSdsState((prev) => {
@@ -420,7 +502,7 @@ Rules:
       const selectionChanged =
         current?.selectedOption?.index !== index || current?.selectedOption?.name !== name;
       const shouldUnlock = wasLocked && selectionChanged;
-      const sec = SD_SECTIONS.find((s) => s.id === secId);
+      const sec = researchSections.find((s) => s.id === secId);
       const newChatSeed = sec
         ? [{ role: "assistant" as const, content: `You've selected ${name} for ${sec.label.toLowerCase()}. Ask me why, push back, or lock this decision when ready.` }]
         : [];
@@ -439,7 +521,7 @@ Rules:
         },
       };
     });
-  }, []);
+  }, [researchSections]);
 
   const addChatMsg = useCallback((secId: string, role: string, text: string) => {
     setSdsState((prev) => {
@@ -465,7 +547,7 @@ Rules:
       input.value = "";
       addChatMsg(secId, "user", msg);
 
-      const sec = SD_SECTIONS.find((s) => s.id === secId);
+      const sec = researchSections.find((s) => s.id === secId);
       const data = sdsState[secId]?.data;
       const selected = sdsState[secId]?.selectedOption;
       const sys = `You are a staff engineer presenting at a system design review. Defend or revise architecture choices using technical arguments only: consistency models, latency profiles, throughput limits, failure modes, protocol semantics, scaling characteristics, CAP theorem trade-offs, etc. Never justify choices with developer experience, ease of use, or team familiarity. Be direct and concise — under 100 words. Plain text only.`;
@@ -497,7 +579,7 @@ Rules:
         addChatMsg(secId, "ai", `Sorry, hit an error: ${e instanceof Error ? e.message : String(e)}`);
       }
     },
-    [brief.intake, sdsState, addChatMsg, selectOption, apiKeyValue]
+    [brief.intake, sdsState, addChatMsg, selectOption, apiKeyValue, researchSections]
   );
 
   const lockSection = useCallback((secId: string) => {
@@ -511,8 +593,8 @@ Rules:
     persistSession();
   }, [persistSession]);
 
-  const lockedCount = SD_SECTIONS.filter((s) => sdsState[s.id]?.status === "locked").length;
-  const totalSections = SD_SECTIONS.length;
+  const lockedCount = researchSections.filter((s) => sdsState[s.id]?.status === "locked").length;
+  const totalSections = researchSections.length;
 
   const runPRD = useCallback(async () => {
     setCompletedSteps((s) => new Set([...Array.from(s), 2]));
@@ -522,11 +604,19 @@ Rules:
 
     const intakeData = intake;
     const inf = brief.inferred || {};
-    const companyProfile = brief.companyProfile || "";
+    const companyProfile = brief.partnerResearch?.summary || brief.companyProfile || "";
+    const grounding = getResearchGrounding(brief.partnerResearch, inf);
+    const partnerNotes = [
+      `Partner Domain: ${grounding.domain}`,
+      `Partner Products: ${(brief.partnerResearch?.products || []).join(", ") || "unknown"}`,
+      `Partner Constraints: ${(grounding.constraints || []).join(", ") || "none"}`,
+      `Partner Notes: ${(brief.partnerResearch?.notes || []).join("; ") || "none"}`,
+      `Discovered Layers: ${researchSections.map((sec) => `${sec.label} (${sec.priority})`).join(", ") || "none"}`,
+    ].join("\n");
     const decisionRecordSys = `You are a technical decision recorder. Write a concise Decision Record for this system design choice. Plain text, structured with clear labels. Under 200 words.`;
 
     const newRecords: Record<string, string> = {};
-    for (const sec of SD_SECTIONS) {
+    for (const sec of researchSections) {
       const s = sdsState[sec.id];
       if (s?.status !== "locked" || s?.decisionRecord) continue;
       const data = s.data;
@@ -566,7 +656,7 @@ REVIEW NOTES: [anything surfaced in discussion]`;
       return next;
     });
 
-    const decisionRecords = SD_SECTIONS.map((sec) => {
+    const decisionRecords = researchSections.map((sec) => {
       const s = sdsState[sec.id];
       const record = newRecords[sec.id] ?? s?.decisionRecord;
       const chosen = s?.selectedOption?.name || "default";
@@ -592,16 +682,14 @@ ${intakeData?.functionalReqs}
 
 ADDITIONAL NOTES: ${intakeData?.additionalNotes || "none"}
 
-TARGET USERS: ${(inf.targetUsers || []).join(", ") || "TBD"}
-DOMAIN: ${inf.domain || "TBD"}
+TARGET USERS: ${(grounding.targetUsers || []).join(", ") || "TBD"}
+DOMAIN: ${grounding.domain || "TBD"}
 
 ## LOCKED SYSTEM DESIGN DECISIONS:
 ${decisionRecords}
 
 RESEARCH FINDINGS:
-Market Context: (from research)
-Technical Considerations: (from research)
-Risks: (from research)
+${partnerNotes}
 
 The PRD must include:
 1. Executive Summary
@@ -631,7 +719,7 @@ Format as clean markdown with proper headers.`;
       setPrdOutputVisible(true);
     }
     setPrdLoading(false);
-  }, [brief, intake, sdsState, goToStep, persistSession, apiKeyValue]);
+  }, [brief, intake, sdsState, goToStep, persistSession, apiKeyValue, researchSections]);
 
   const runExecutionPlan = useCallback(async () => {
     setCompletedSteps((s) => new Set([...Array.from(s), 3]));
@@ -642,8 +730,9 @@ Format as clean markdown with proper headers.`;
 
     const intake2 = brief.intake || intake;
     const inf2 = brief.inferred || {};
-    const cp2 = brief.companyProfile || "";
-    const decisions2 = SD_SECTIONS.map((sec) => {
+    const cp2 = brief.partnerResearch?.summary || brief.companyProfile || "";
+    const grounding = getResearchGrounding(brief.partnerResearch, inf2);
+    const decisions2 = researchSections.map((sec) => {
       const s = sdsState[sec.id];
       return s?.selectedOption ? `${sec.label}: ${s.selectedOption.name}` : null;
     })
@@ -653,10 +742,13 @@ Format as clean markdown with proper headers.`;
 Company: ${intake2?.company}
 Company Profile: ${cp2.substring(0, 300)}...
 Project: ${intake2?.projectName}
-Domain: ${inf2?.domain || "TBD"}
+Domain: ${grounding.domain || "TBD"}
 Problem: ${intake2?.problemStatement}
 Functional Requirements: ${intake2?.functionalReqs}
-Target Users: ${(inf2.targetUsers || []).join(", ") || "TBD"}
+Target Users: ${(grounding.targetUsers || []).join(", ") || "TBD"}
+Partner Products: ${(brief.partnerResearch?.products || []).join(", ") || "unknown"}
+Partner Constraints: ${(grounding.constraints || []).join(", ") || "none"}
+Discovered Layers: ${researchSections.map((sec) => `${sec.label} (${sec.priority})`).join(", ") || "none"}
 
 LOCKED STACK DECISIONS:
 ${decisions2 || "See PRD for details"}
@@ -727,7 +819,7 @@ PRD Summary: ${prd.substring(0, 600)}...
       setPlanOutputVisible(true);
     }
     setPlanLoading(false);
-  }, [brief, intake, sdsState, prd, goToStep, persistSession, apiKeyValue]);
+  }, [brief, intake, sdsState, prd, goToStep, persistSession, apiKeyValue, researchSections]);
 
   const downloadAll = useCallback(async () => {
     const files: [string, string][] = [
@@ -760,9 +852,10 @@ PRD Summary: ${prd.substring(0, 600)}...
     setPrd("");
     setPlan({});
     setIntake(initialIntake);
-    setSdsState(getEmptySdsState());
+    setSdsState(buildInitialSdsState(CORE_RESEARCH_SECTIONS));
     setInferredVisible(false);
     setResearchOutputVisible(false);
+    setResearchError(null);
     setPrdOutputVisible(false);
     setPlanOutputVisible(false);
     setPlanStreamingText("");
@@ -1081,7 +1174,7 @@ PRD Summary: ${prd.substring(0, 600)}...
           Claude analyzes each layer of the system and recommends options. Debate any decision inline — then lock it in.
         </p>
 
-        {!researchOutputVisible && (
+        {!researchOutputVisible && !researchError && (
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
@@ -1091,8 +1184,100 @@ PRD Summary: ${prd.substring(0, 600)}...
           </div>
         )}
 
+        {!researchOutputVisible && researchError && (
+          <div className="alert alert-warning" style={{ marginTop: 12 }}>
+            {researchError}
+          </div>
+        )}
+
         {researchOutputVisible && (
           <div>
+            {brief.partnerResearch && (
+              <div className="output-card" style={{ marginBottom: 16 }}>
+                <div className="output-card-header">
+                  <div className="card-title">🏢 Partner Context <span className="card-badge">research</span></div>
+                </div>
+                <div className="output-card-body open">
+                  <div className="output-content">{brief.partnerResearch.summary}</div>
+                  <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <span className="inferred-tag">{brief.partnerResearch.domain || "Unknown domain"}</span>
+                    {(brief.partnerResearch.targetUsers || []).map((user) => (
+                      <span key={user} className="inferred-tag">{user}</span>
+                    ))}
+                    {(brief.partnerResearch.constraints || []).map((constraint) => (
+                      <span key={constraint} className="inferred-tag">{constraint}</span>
+                    ))}
+                  </div>
+                  {!!brief.partnerResearch.sources?.length && (
+                    <div style={{ marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
+                      Sources used:{" "}
+                      {brief.partnerResearch.sources
+                        .map((source) => source.label)
+                        .join(", ")}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {brief.inferred && (
+              <div className="output-card" style={{ marginBottom: 16 }}>
+                <div className="output-card-header">
+                  <div className="card-title">⚙ Inferred Project Context <span className="card-badge">context</span></div>
+                </div>
+                <div className="output-card-body open">
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                    <span className="inferred-tag">{brief.inferred.domain || "Unknown domain"}</span>
+                    <span className="inferred-tag">{brief.inferred.projectType || "Unknown project type"}</span>
+                    {(brief.inferred.stack || []).map((item) => (
+                      <span key={item} className="inferred-tag">{item}</span>
+                    ))}
+                    {(brief.inferred.integrations || []).map((item) => (
+                      <span key={item} className="inferred-tag">{item}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!!brief.discoveredSections?.length && (
+              <div className="output-card" style={{ marginBottom: 16 }}>
+                <div className="output-card-header">
+                  <div className="card-title">🧭 Discovered Layers <span className="card-badge">dynamic</span></div>
+                </div>
+                <div className="output-card-body open">
+                  <div style={{ marginBottom: 10, fontSize: 13, color: "var(--muted)" }}>
+                    The research pass inferred additional layers from the brief and partner context.
+                  </div>
+                  <div style={{ display: "grid", gap: 16 }}>
+                    {(["required", "optional"] as const).map((priority) => {
+                      const sections = brief.discoveredSections?.filter((section) => section.priority === priority) || [];
+                      if (!sections.length) return null;
+                      return (
+                        <div key={priority}>
+                          <div style={{ marginBottom: 8, fontSize: 12, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>
+                            {priority} layers
+                          </div>
+                          <div style={{ display: "grid", gap: 10 }}>
+                            {sections.map((section) => (
+                              <div key={section.id} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 12 }}>
+                                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                                  <strong>{section.label}</strong>
+                                  <span className="card-badge">{section.priority}</span>
+                                </div>
+                                <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>{section.sub}</div>
+                                <div style={{ fontSize: 13 }}>{section.reason}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="sections-progress">
               <span>{lockedCount} of {totalSections} sections locked</span>
               <div className="progress-bar-track">
@@ -1104,7 +1289,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               <span>{Math.round((lockedCount / totalSections) * 100)}%</span>
             </div>
 
-            {SD_SECTIONS.map((sec) => {
+            {researchSections.map((sec) => {
               const sv = sdsState[sec.id];
               const bodyOpen = sv?.status !== "locked" || openCards.has(`sds-body-${sec.id}`);
               return (

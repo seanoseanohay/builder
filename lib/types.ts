@@ -19,6 +19,32 @@ export interface Inferred {
   domain?: string;
 }
 
+export interface PartnerResearchSource {
+  type: "website" | "search" | "intake";
+  label: string;
+  url?: string;
+}
+
+export interface PartnerResearch {
+  summary: string;
+  domain?: string;
+  targetUsers?: string[];
+  products?: string[];
+  constraints?: string[];
+  notes?: string[];
+  sources?: PartnerResearchSource[];
+}
+
+export interface ResearchSection {
+  id: string;
+  icon: string;
+  label: string;
+  sub: string;
+  reason: string;
+  priority: "required" | "optional";
+  category: "core" | "dynamic";
+}
+
 export interface SDSOption {
   name: string;
   verdict: "recommended" | "viable" | "avoid";
@@ -42,6 +68,8 @@ export interface BriefState {
   intake?: Intake;
   inferred?: Inferred;
   companyProfile?: string;
+  partnerResearch?: PartnerResearch;
+  discoveredSections?: ResearchSection[];
 }
 
 export interface PlanState {
