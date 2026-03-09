@@ -12,7 +12,7 @@ const NO_KEY_MESSAGE =
   "No API key. Add your Anthropic API key in the app (header) or set ANTHROPIC_API_KEY in the server environment.";
 
 export async function POST(request: NextRequest) {
-  let body: { systemPrompt: string; userPrompt: string; apiKey?: string };
+  let body: { systemPrompt: string; userPrompt: string; apiKey?: string; stream?: boolean };
   try {
     body = await request.json();
   } catch {
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { systemPrompt, userPrompt, apiKey: bodyKey } = body;
+  const { systemPrompt, userPrompt, apiKey: bodyKey, stream: wantStream } = body;
   const requestKey = request.headers.get("x-anthropic-api-key")?.trim() || bodyKey?.trim();
   const apiKey = requestKey || process.env.ANTHROPIC_API_KEY;
 
@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         max_tokens: MAX_TOKENS,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
+        stream: wantStream === true,
       }),
     });
 
@@ -69,6 +70,16 @@ export async function POST(request: NextRequest) {
         { error: `Anthropic API error: ${response.status} — ${errText}` },
         { status: response.status }
       );
+    }
+
+    if (wantStream === true && response.body) {
+      return new Response(response.body, {
+        headers: {
+          "Content-Type": response.headers.get("content-type") || "text/event-stream",
+          "Cache-Control": "no-cache",
+          "Connection": "keep-alive",
+        },
+      });
     }
 
     const data = (await response.json()) as {

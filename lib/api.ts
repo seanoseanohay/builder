@@ -81,3 +81,61 @@ export function callClaude(
     drain();
   });
 }
+
+/** Stream Claude response; onChunk is called with each text delta; resolves with full text. */
+export async function callClaudeStream(
+  systemPrompt: string,
+  userPrompt: string,
+  onChunk: (chunk: string) => void
+): Promise<string> {
+  const apiKey = getStoredApiKey();
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["X-Anthropic-API-Key"] = apiKey;
+  const body: { systemPrompt: string; userPrompt: string; apiKey?: string; stream?: boolean } = {
+    systemPrompt,
+    userPrompt,
+    stream: true,
+  };
+  if (apiKey) body.apiKey = apiKey;
+
+  const res = await fetch("/api/claude", {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const data = (await res.json().catch(() => ({}))) as { error?: string };
+    const msg = data.error || `API error: ${res.status}`;
+    throw new Error(res.status === 401 ? "NO_API_KEY:" + msg : msg);
+  }
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error("No response body");
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let fullText = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    const events = buffer.split("\n\n");
+    buffer = events.pop() ?? "";
+    for (const event of events) {
+      const dataLine = event.split("\n").find((l) => l.startsWith("data: "));
+      if (!dataLine) continue;
+      try {
+        const data = JSON.parse(dataLine.slice(6)) as {
+          type?: string;
+          delta?: { type?: string; text?: string };
+        };
+        if (data.type === "content_block_delta" && data.delta?.type === "text_delta" && data.delta.text) {
+          fullText += data.delta.text;
+          onChunk(data.delta.text);
+        }
+      } catch {
+        // skip unparseable lines
+      }
+    }
+  }
+  return fullText;
+}

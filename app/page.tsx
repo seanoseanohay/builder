@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { callClaude, getStoredApiKeyIfSet, setStoredApiKey } from "@/lib/api";
+import { callClaude, callClaudeStream, getStoredApiKeyIfSet, setStoredApiKey } from "@/lib/api";
 import { safeParseJSON } from "@/lib/json";
 import { loadSession, saveSession, deleteSession } from "@/lib/session";
 import { SD_SECTIONS, SECTION_PROMPTS } from "@/lib/sections";
@@ -93,6 +93,7 @@ export default function Home() {
   const [prdOutputVisible, setPrdOutputVisible] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
   const [planOutputVisible, setPlanOutputVisible] = useState(false);
+  const [planStreamingText, setPlanStreamingText] = useState("");
   const [inferLoading, setInferLoading] = useState(false);
   const [inferredVisible, setInferredVisible] = useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
@@ -636,7 +637,8 @@ Format as clean markdown with proper headers.`;
     setCompletedSteps((s) => new Set([...Array.from(s), 3]));
     goToStep(4);
     setPlanLoading(true);
-    setPlanOutputVisible(false);
+    setPlanOutputVisible(true);
+    setPlanStreamingText("");
 
     const intake2 = brief.intake || intake;
     const inf2 = brief.inferred || {};
@@ -664,14 +666,17 @@ PRD Summary: ${prd.substring(0, 600)}...
 
     const sys = `You are a senior software architect and technical project manager. Write detailed, actionable project planning documents that will be used by an AI coding agent (Claude) inside Cursor. All content should be in clean markdown. Be specific, thorough, and opinionated about the right approach.`;
 
+    const planPrompt = `Write a detailed phased EXECUTION PLAN in markdown for this project. Include 4-6 phases. For each phase: phase name, goal, list of specific tasks with checkboxes, estimated complexity (S/M/L), dependencies, and definition of done. End with a "Quick Start" section — the exact first 3 commands or actions to run.\n\nContext:\n${context}`;
+
     try {
-      const [planText, projectbrief, productcontext, systempatterns, techcontext, activecontext, progressfile] =
+      const planText = await callClaudeStream(sys, planPrompt, (chunk) => {
+        setPlanStreamingText((prev) => prev + chunk);
+      });
+      setPlan((prev) => ({ ...prev, plan: planText }));
+      setPlanStreamingText("");
+
+      const [projectbrief, productcontext, systempatterns, techcontext, activecontext, progressfile] =
         await Promise.all([
-          callClaudeWithKeyCheck(
-            sys,
-            `Write a detailed phased EXECUTION PLAN in markdown for this project. Include 4-6 phases. For each phase: phase name, goal, list of specific tasks with checkboxes, estimated complexity (S/M/L), dependencies, and definition of done. End with a "Quick Start" section — the exact first 3 commands or actions to run.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
           callClaudeWithKeyCheck(
             sys,
             `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
@@ -704,24 +709,25 @@ PRD Summary: ${prd.substring(0, 600)}...
           ),
         ]);
 
-      setPlan({
-        plan: planText,
+      setPlan((prev) => ({
+        ...prev,
         projectbrief,
         productcontext,
         systempatterns,
         techcontext,
         activecontext,
         progressfile,
-      });
+      }));
       setCompletedSteps((s) => new Set([...Array.from(s), 4]));
       setPlanOutputVisible(true);
       persistSession();
     } catch (e) {
+      setPlanStreamingText("");
       setPlan({ plan: `Error: ${e instanceof Error ? e.message : String(e)}` });
       setPlanOutputVisible(true);
     }
     setPlanLoading(false);
-  }, [brief, sdsState, prd, goToStep, persistSession, apiKeyValue]);
+  }, [brief, intake, sdsState, prd, goToStep, persistSession, apiKeyValue]);
 
   const downloadAll = useCallback(async () => {
     const files: [string, string][] = [
@@ -759,6 +765,7 @@ PRD Summary: ${prd.substring(0, 600)}...
     setResearchOutputVisible(false);
     setPrdOutputVisible(false);
     setPlanOutputVisible(false);
+    setPlanStreamingText("");
     setOpenCards(new Set(["prd-full", "ep-plan"]));
     deleteSession();
     goToStep(1);
@@ -924,7 +931,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               type="text"
               value={intake.company}
               onChange={(e) => setIntake((i) => ({ ...i, company: e.target.value }))}
-              placeholder="e.g. Superbuilders"
+              placeholder="fake company"
             />
           </div>
           <div className="field-group" style={{ margin: 0 }}>
@@ -933,7 +940,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               type="text"
               value={intake.website}
               onChange={(e) => setIntake((i) => ({ ...i, website: e.target.value }))}
-              placeholder="e.g. superbuilders.com"
+              placeholder="fake website"
             />
           </div>
         </div>
@@ -945,7 +952,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               type="text"
               value={intake.projectName}
               onChange={(e) => setIntake((i) => ({ ...i, projectName: e.target.value }))}
-              placeholder="e.g. Clone Synthesis Tutor - Interactive Fractions Learning"
+              placeholder="awesome project name"
             />
           </div>
           <div className="field-group" style={{ margin: 0 }}>
@@ -968,7 +975,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             value={intake.problemStatement}
             onChange={(e) => setIntake((i) => ({ ...i, problemStatement: e.target.value }))}
             style={{ minHeight: 120 }}
-            placeholder="Describe the challenge, what needs to be built, and what success looks like..."
+            placeholder="Describe the problem and what success looks like..."
           />
         </div>
 
@@ -978,7 +985,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             value={intake.functionalReqs}
             onChange={(e) => setIntake((i) => ({ ...i, functionalReqs: e.target.value }))}
             style={{ minHeight: 90 }}
-            placeholder="1. Conversational chat interface, 2. Interactive digital workspace..."
+            placeholder="List main features or requirements..."
           />
         </div>
 
@@ -989,7 +996,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               type="text"
               value={intake.languages}
               onChange={(e) => setIntake((i) => ({ ...i, languages: e.target.value }))}
-              placeholder="e.g. JavaScript, TypeScript"
+              placeholder="preferred languages or stack"
             />
           </div>
           <div className="field-group" style={{ margin: 0 }}>
@@ -998,7 +1005,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               type="text"
               value={intake.techContact}
               onChange={(e) => setIntake((i) => ({ ...i, techContact: e.target.value }))}
-              placeholder="e.g. Patrick Skinner"
+              placeholder="fake person name"
             />
           </div>
         </div>
@@ -1009,7 +1016,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             type="text"
             value={intake.additionalNotes}
             onChange={(e) => setIntake((i) => ({ ...i, additionalNotes: e.target.value }))}
-            placeholder="Deadlines, integrations, compliance needs..."
+            placeholder="Constraints, integrations, or compliance needs..."
           />
         </div>
 
@@ -1247,7 +1254,7 @@ PRD Summary: ${prd.substring(0, 600)}...
         <div className="section-title">Execution Plan + Memory Bank</div>
         <p className="section-desc">Phased execution plan and all 6 memory-bank files — drop them straight into your Cursor project.</p>
 
-        {planLoading && (
+        {planLoading && planStreamingText === "" && (
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
@@ -1256,10 +1263,10 @@ PRD Summary: ${prd.substring(0, 600)}...
           </div>
         )}
 
-        {planOutputVisible && !planLoading && (
+        {planOutputVisible && (
           <div>
             {[
-              { id: "ep-plan", title: "🗺️ Execution Plan", badge: "PLAN.md", badgeGreen: true, content: plan.plan },
+              { id: "ep-plan", title: "🗺️ Execution Plan", badge: "PLAN.md", badgeGreen: true, content: planStreamingText || plan.plan || "" },
               { id: "mb-brief", title: "🧠 projectbrief.md", badge: "memory-bank", content: plan.projectbrief },
               { id: "mb-product", title: "🧠 productContext.md", badge: "memory-bank", content: plan.productcontext },
               { id: "mb-system", title: "🧠 systemPatterns.md", badge: "memory-bank", content: plan.systempatterns },
