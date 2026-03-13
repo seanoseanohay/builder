@@ -8,13 +8,13 @@ describe("safeParseJSON", () => {
   });
 
   it("strips markdown code fences", () => {
-    expect(
-      safeParseJSON('```json\n{"x": "y"}\n```')
-    ).toEqual({ x: "y" });
+    expect(safeParseJSON('```json\n{"x": "y"}\n```')).toEqual({ x: "y" });
   });
 
   it("throws when no JSON object/array found", () => {
-    expect(() => safeParseJSON("plain text")).toThrow("No JSON found in response");
+    expect(() => safeParseJSON("plain text")).toThrow(
+      "No JSON found in response",
+    );
   });
 
   it("repairs truncated JSON missing closing braces", () => {

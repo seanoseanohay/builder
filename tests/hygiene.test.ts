@@ -29,10 +29,18 @@ function collectSourceFiles(): SourceFile[] {
           walk(fullPath);
           continue;
         }
-        if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx")) continue;
-        if (entry.name.endsWith("_test.ts") || entry.name.endsWith(".test.ts") || entry.name.endsWith(".spec.ts"))
+        if (!entry.name.endsWith(".ts") && !entry.name.endsWith(".tsx"))
           continue;
-        results.push({ filePath: fullPath, lines: fs.readFileSync(fullPath, "utf8").split("\n") });
+        if (
+          entry.name.endsWith("_test.ts") ||
+          entry.name.endsWith(".test.ts") ||
+          entry.name.endsWith(".spec.ts")
+        )
+          continue;
+        results.push({
+          filePath: fullPath,
+          lines: fs.readFileSync(fullPath, "utf8").split("\n"),
+        });
       }
     };
     walk(fullDir);
@@ -42,11 +50,16 @@ function collectSourceFiles(): SourceFile[] {
 
 function countMatches(files: SourceFile[], pattern: string | RegExp): number {
   if (typeof pattern === "string") {
-    return files.reduce((total, file) => total + file.lines.filter((line) => line.includes(pattern)).length, 0);
+    return files.reduce(
+      (total, file) =>
+        total + file.lines.filter((line) => line.includes(pattern)).length,
+      0,
+    );
   }
   return files.reduce(
-    (total, file) => total + file.lines.filter((line) => pattern.test(line)).length,
-    0
+    (total, file) =>
+      total + file.lines.filter((line) => pattern.test(line)).length,
+    0,
   );
 }
 
@@ -72,8 +85,10 @@ describe("hygiene ratchet", () => {
     const count = files.reduce(
       (total, file) =>
         total +
-        file.lines.filter((line) => /\bvoid\s+/.test(line) && !/: void/.test(line)).length,
-      0
+        file.lines.filter(
+          (line) => /\bvoid\s+/.test(line) && !/: void/.test(line),
+        ).length,
+      0,
     );
     expect(count).toBeLessThanOrEqual(MAX_VOID_DISPATCH);
   });

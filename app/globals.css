@@ -32,7 +32,8 @@ body::before {
   content: "";
   position: fixed;
   inset: 0;
-  background-image: linear-gradient(rgba(108, 99, 255, 0.04) 1px, transparent 1px),
+  background-image:
+    linear-gradient(rgba(108, 99, 255, 0.04) 1px, transparent 1px),
     linear-gradient(90deg, rgba(108, 99, 255, 0.04) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
@@ -66,7 +67,12 @@ h1 {
   font-size: clamp(28px, 5vw, 48px);
   font-weight: 800;
   line-height: 1.1;
-  background: linear-gradient(135deg, #fff 0%, var(--accent) 60%, var(--accent3) 100%);
+  background: linear-gradient(
+    135deg,
+    #fff 0%,
+    var(--accent) 60%,
+    var(--accent3) 100%
+  );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -95,7 +101,9 @@ h1 {
   padding: 8px 12px;
   border-radius: 4px;
   cursor: pointer;
-  transition: color 0.2s, border-color 0.2s;
+  transition:
+    color 0.2s,
+    border-color 0.2s;
 }
 
 .api-key-toggle:hover {
@@ -524,7 +532,11 @@ select option {
 }
 
 .download-all-card {
-  background: linear-gradient(135deg, rgba(108, 99, 255, 0.1), rgba(0, 217, 163, 0.05));
+  background: linear-gradient(
+    135deg,
+    rgba(108, 99, 255, 0.1),
+    rgba(0, 217, 163, 0.05)
+  );
   border: 1px solid var(--accent);
   border-radius: 6px;
   padding: 24px;
@@ -850,7 +862,10 @@ select option {
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s, transform 0.1s;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.1s;
   white-space: nowrap;
 }
 

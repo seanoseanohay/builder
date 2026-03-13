@@ -12,7 +12,7 @@ export interface SearchResult {
   snippet: string;
 }
 
-function slugify(value: string): string {
+export function slugify(value: string): string {
   return value
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -25,7 +25,8 @@ export const CORE_RESEARCH_SECTIONS: ResearchSection[] = [
     icon: "🖥️",
     label: "Frontend",
     sub: "Framework · UI library · State management",
-    reason: "Every product needs a clear client experience or delivery surface.",
+    reason:
+      "Every product needs a clear client experience or delivery surface.",
     priority: "required",
     category: "core",
   },
@@ -34,7 +35,8 @@ export const CORE_RESEARCH_SECTIONS: ResearchSection[] = [
     icon: "⚙️",
     label: "Backend",
     sub: "Runtime · Framework · API style",
-    reason: "Business logic, orchestration, and integrations need a service layer.",
+    reason:
+      "Business logic, orchestration, and integrations need a service layer.",
     priority: "required",
     category: "core",
   },
@@ -43,7 +45,8 @@ export const CORE_RESEARCH_SECTIONS: ResearchSection[] = [
     icon: "🗄️",
     label: "Database",
     sub: "Primary store · Schema approach",
-    reason: "The system needs durable application data and access patterns defined.",
+    reason:
+      "The system needs durable application data and access patterns defined.",
     priority: "required",
     category: "core",
   },
@@ -86,11 +89,16 @@ export function normalizeDiscoveredSections(raw: unknown): ResearchSection[] {
     if (!label) return sections;
 
     const idCandidate =
-      typeof item.id === "string" && item.id.trim() ? item.id.trim() : slugify(label);
+      typeof item.id === "string" && item.id.trim()
+        ? item.id.trim()
+        : slugify(label);
 
     sections.push({
       id: slugify(idCandidate),
-      icon: typeof item.icon === "string" && item.icon.trim() ? item.icon.trim() : "🧩",
+      icon:
+        typeof item.icon === "string" && item.icon.trim()
+          ? item.icon.trim()
+          : "🧩",
       label,
       sub: typeof item.sub === "string" ? item.sub.trim() : "",
       reason: typeof item.reason === "string" ? item.reason.trim() : "",
@@ -103,7 +111,7 @@ export function normalizeDiscoveredSections(raw: unknown): ResearchSection[] {
 
 export function mergeResearchSections(
   coreSections: ResearchSection[],
-  discoveredSections: ResearchSection[]
+  discoveredSections: ResearchSection[],
 ): ResearchSection[] {
   const merged = [...coreSections];
   const seen = new Set(coreSections.map((section) => section.id));
@@ -119,7 +127,9 @@ export function mergeResearchSections(
 
 export function buildWebsiteTargets(website: string): string[] {
   try {
-    const normalized = website.match(/^https?:\/\//i) ? website : `https://${website}`;
+    const normalized = website.match(/^https?:\/\//i)
+      ? website
+      : `https://${website}`;
     const url = new URL(normalized);
     const origin = url.origin;
 
@@ -139,10 +149,12 @@ export function buildWebsiteTargets(website: string): string[] {
 }
 
 export function parseSearchResults(html: string): SearchResult[] {
-  const linkPattern = /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
-  const snippetPattern = /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
+  const linkPattern =
+    /<a[^>]*class="result__a"[^>]*href="([^"]+)"[^>]*>([\s\S]*?)<\/a>/gi;
+  const snippetPattern =
+    /<a[^>]*class="result__snippet"[^>]*>([\s\S]*?)<\/a>/gi;
   const snippets = Array.from(html.matchAll(snippetPattern)).map((match) =>
-    match[1].replace(/<[^>]+>/g, "").trim()
+    match[1].replace(/<[^>]+>/g, "").trim(),
   );
 
   return Array.from(html.matchAll(linkPattern)).map((match, index) => {
@@ -167,7 +179,7 @@ export function stripHtml(html: string): string {
     .replace(/<[^>]+>/g, " ")
     .replace(/&nbsp;/gi, " ")
     .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, "\"")
+    .replace(/&quot;/gi, '"')
     .replace(/&#39;/gi, "'")
     .replace(/\s+/g, " ")
     .trim();
@@ -179,7 +191,7 @@ export function normalizeResearchResult(
     inferred?: Inferred;
     discoveredSections?: unknown;
   },
-  actualSources: PartnerResearchSource[]
+  actualSources: PartnerResearchSource[],
 ): {
   partnerResearch: PartnerResearch;
   inferred: Inferred;
@@ -195,7 +207,9 @@ export function normalizeResearchResult(
     products: raw.partnerResearch?.products || [],
     constraints: raw.partnerResearch?.constraints || inferred.constraints || [],
     notes: raw.partnerResearch?.notes || [],
-    sources: actualSources.length ? actualSources : [{ type: "intake", label: "Project intake" }],
+    sources: actualSources.length
+      ? actualSources
+      : [{ type: "intake", label: "Project intake" }],
   };
 
   return {
@@ -207,7 +221,7 @@ export function normalizeResearchResult(
 
 export function getResearchGrounding(
   partnerResearch?: Partial<PartnerResearch>,
-  inferred?: Inferred
+  inferred?: Inferred,
 ): { domain: string; targetUsers: string[]; constraints: string[] } {
   return {
     domain: partnerResearch?.domain || inferred?.domain || "TBD",
@@ -217,7 +231,7 @@ export function getResearchGrounding(
 }
 
 export function buildInitialSdsState(
-  sections: Array<Pick<ResearchSection, "id">>
+  sections: Array<Pick<ResearchSection, "id">>,
 ): Record<string, SDSStateSection> {
   return sections.reduce<Record<string, SDSStateSection>>((acc, section) => {
     acc[section.id] = {

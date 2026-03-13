@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import JSZip from "jszip";
-import { callClaude, callClaudeStream, getStoredApiKeyIfSet, setStoredApiKey } from "@/lib/api";
+import {
+  callClaude,
+  callClaudeStream,
+  getStoredApiKeyIfSet,
+  setStoredApiKey,
+} from "@/lib/api";
 import { safeParseJSON } from "@/lib/json";
 import {
   buildInitialSdsState,
@@ -41,7 +46,7 @@ const initialIntake: Intake = {
 function buildBriefSummary(
   intake: Intake,
   inferred: Inferred | undefined,
-  companyProfile: string
+  companyProfile: string,
 ): string {
   return `
 COMPANY: ${intake.company}${intake.website ? " — " + intake.website : ""}
@@ -76,17 +81,19 @@ export default function Home() {
   const [brief, setBrief] = useState<BriefState>({});
   const [prd, setPrd] = useState("");
   const [plan, setPlan] = useState<PlanState>({});
-  const [sdsState, setSdsState] = useState<Record<string, SDSStateSection>>(() =>
-    buildInitialSdsState(CORE_RESEARCH_SECTIONS)
+  const [sdsState, setSdsState] = useState<Record<string, SDSStateSection>>(
+    () => buildInitialSdsState(CORE_RESEARCH_SECTIONS),
   );
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [currentStep, setCurrentStep] = useState(1);
-  const [openCards, setOpenCards] = useState<Set<string>>(new Set(["prd-full", "ep-plan"]));
+  const [openCards, setOpenCards] = useState<Set<string>>(
+    new Set(["prd-full", "ep-plan"]),
+  );
   const [showRestoreBanner, setShowRestoreBanner] = useState(false);
   const [restoreInfo, setRestoreInfo] = useState("");
   const [researchLoading, setResearchLoading] = useState(false);
   const [researchLoadingText, setResearchLoadingText] = useState(
-    "Researching company and analyzing system requirements..."
+    "Researching company and analyzing system requirements...",
   );
   const [researchOutputVisible, setResearchOutputVisible] = useState(false);
   const [researchError, setResearchError] = useState<string | null>(null);
@@ -104,12 +111,21 @@ export default function Home() {
   const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
   const savedSessionRef = useRef<SavedSession | null>(null);
 
-  const mergedFromBrief = mergeResearchSections(CORE_RESEARCH_SECTIONS, brief.discoveredSections || []);
+  const mergedFromBrief = mergeResearchSections(
+    CORE_RESEARCH_SECTIONS,
+    brief.discoveredSections || [],
+  );
   const researchSections =
-    brief.proposedLayers && brief.proposedLayers.length > 0 ? brief.proposedLayers : mergedFromBrief;
+    brief.proposedLayers && brief.proposedLayers.length > 0
+      ? brief.proposedLayers
+      : mergedFromBrief;
 
   const callClaudeWithKeyCheck = useCallback(
-    async (systemPrompt: string, userPrompt: string, keyFromInput?: string): Promise<string> => {
+    async (
+      systemPrompt: string,
+      userPrompt: string,
+      keyFromInput?: string,
+    ): Promise<string> => {
       if (keyFromInput?.trim() && !getStoredApiKeyIfSet()) {
         setStoredApiKey(keyFromInput);
         setHasStoredApiKey(true);
@@ -126,7 +142,7 @@ export default function Home() {
         throw e;
       }
     },
-    []
+    [],
   );
 
   const persistSession = useCallback(() => {
@@ -148,7 +164,15 @@ export default function Home() {
       completedSteps: Array.from(completedSteps),
       currentStep,
     });
-  }, [brief, sdsState, completedSteps, currentStep, prd, plan, researchSections]);
+  }, [
+    brief,
+    sdsState,
+    completedSteps,
+    currentStep,
+    prd,
+    plan,
+    researchSections,
+  ]);
 
   useEffect(() => {
     const stored = !!getStoredApiKeyIfSet();
@@ -163,7 +187,7 @@ export default function Home() {
     const company = saved.state.brief.intake.company;
     const project = saved.state.brief.intake.projectName;
     setRestoreInfo(
-      `${company} — ${project} (saved ${age < 1 ? "just now" : age + "m ago"})`
+      `${company} — ${project} (saved ${age < 1 ? "just now" : age + "m ago"})`,
     );
     setShowRestoreBanner(true);
     savedSessionRef.current = saved;
@@ -189,8 +213,12 @@ export default function Home() {
       const restoredSections =
         (saved.state.brief?.proposedLayers?.length ?? 0) > 0
           ? saved.state.brief!.proposedLayers!
-          : mergeResearchSections(CORE_RESEARCH_SECTIONS, saved.state.brief?.discoveredSections || []);
-      const next: Record<string, SDSStateSection> = buildInitialSdsState(restoredSections);
+          : mergeResearchSections(
+              CORE_RESEARCH_SECTIONS,
+              saved.state.brief?.discoveredSections || [],
+            );
+      const next: Record<string, SDSStateSection> =
+        buildInitialSdsState(restoredSections);
       Object.entries(saved.snap).forEach(([k, v]) => {
         if (next[k]) {
           next[k] = { ...next[k], ...v, chatHistory: v.chatHistory || [] };
@@ -198,7 +226,9 @@ export default function Home() {
       });
       setSdsState(next);
     }
-    setResearchOutputVisible((saved.snap && Object.keys(saved.snap).length > 0) || false);
+    setResearchOutputVisible(
+      (saved.snap && Object.keys(saved.snap).length > 0) || false,
+    );
     setPrdOutputVisible(!!(saved.state.prd && saved.currentStep >= 4));
     setPlanOutputVisible(!!(saved.state.plan?.plan && saved.currentStep >= 5));
     savedSessionRef.current = null;
@@ -216,7 +246,7 @@ export default function Home() {
       setCurrentStep(n);
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
-    [currentStep, completedSteps]
+    [currentStep, completedSteps],
   );
 
   const toggleCard = useCallback((id: string) => {
@@ -269,9 +299,11 @@ Return JSON with these keys:
 - domain: string (the business domain e.g. "EdTech / AI Tutoring", "FinTech", "Healthcare", "Developer Tools")
 
 JSON only:`,
-        apiKeyValue
+        apiKeyValue,
       );
-      const parsed = safeParseJSON<Inferred>(result.replace(/```json|```/gi, "").trim());
+      const parsed = safeParseJSON<Inferred>(
+        result.replace(/```json|```/gi, "").trim(),
+      );
       setBrief((b) => ({ ...b, inferred: parsed, intake }));
       setInferredVisible(true);
     } catch {
@@ -290,12 +322,15 @@ JSON only:`,
         discoveredSections?: ResearchSection[];
         /** When set, use this exact list instead of core + discovered */
         sectionsOverride?: ResearchSection[];
-      }
+      },
     ) => {
       const availableSections =
         contextOverride?.sectionsOverride ??
         (contextOverride?.discoveredSections
-          ? mergeResearchSections(CORE_RESEARCH_SECTIONS, contextOverride.discoveredSections)
+          ? mergeResearchSections(
+              CORE_RESEARCH_SECTIONS,
+              contextOverride.discoveredSections,
+            )
           : researchSections);
       const sec = availableSections.find((s) => s.id === secId);
       if (!sec) return;
@@ -305,9 +340,13 @@ JSON only:`,
         contextOverride?.partnerResearch?.summary ||
         brief.companyProfile ||
         "";
-      const partnerResearch = contextOverride?.partnerResearch || brief.partnerResearch;
+      const partnerResearch =
+        contextOverride?.partnerResearch || brief.partnerResearch;
       const discoveredSectionSummary = availableSections
-        .map((section) => `${section.label} (${section.priority}) — ${section.reason}`)
+        .map(
+          (section) =>
+            `${section.label} (${section.priority}) — ${section.reason}`,
+        )
         .join("\n");
       setSdsState((prev) => ({
         ...prev,
@@ -370,9 +409,14 @@ Rules:
             selectedOption: null,
           };
           let selectedOption = sectionState.selectedOption;
-          const recIndex = (parsed.options || []).findIndex((o) => o.verdict === "recommended");
+          const recIndex = (parsed.options || []).findIndex(
+            (o) => o.verdict === "recommended",
+          );
           if (recIndex >= 0 && !selectedOption) {
-            selectedOption = { index: recIndex, name: parsed.options![recIndex].name };
+            selectedOption = {
+              index: recIndex,
+              name: parsed.options![recIndex].name,
+            };
           }
           const firstMsg = `I've recommended ${selectedOption?.name || "the top option"} for ${sec.label.toLowerCase()}. Ask me why, push back on any option, or say "use X instead" to swap the recommendation.`;
           return {
@@ -404,7 +448,14 @@ Rules:
         }));
       }
     },
-    [brief, intake, persistSession, apiKeyValue, researchSections, callClaudeWithKeyCheck]
+    [
+      brief,
+      intake,
+      persistSession,
+      apiKeyValue,
+      researchSections,
+      callClaudeWithKeyCheck,
+    ],
   );
 
   const runResearch = useCallback(async () => {
@@ -417,7 +468,9 @@ Rules:
     setResearchOutputVisible(false);
     setResearchError(null);
     setResearchLoading(true);
-    setResearchLoadingText(`Researching ${intake.company} and discovering required system layers...`);
+    setResearchLoadingText(
+      `Researching ${intake.company} and discovering required system layers...`,
+    );
 
     if (apiKeyValue?.trim() && !getStoredApiKeyIfSet()) {
       setStoredApiKey(apiKeyValue);
@@ -427,7 +480,9 @@ Rules:
 
     try {
       const apiKey = getStoredApiKeyIfSet();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       if (apiKey) headers["X-Anthropic-API-Key"] = apiKey;
 
       const response = await fetch("/api/research", {
@@ -471,7 +526,10 @@ Rules:
         sources: [{ type: "intake", label: "Project intake" }],
       };
       const discoveredSections = data.discoveredSections || [];
-      const mergedSections = mergeResearchSections(CORE_RESEARCH_SECTIONS, discoveredSections);
+      const mergedSections = mergeResearchSections(
+        CORE_RESEARCH_SECTIONS,
+        discoveredSections,
+      );
       const nextBrief: BriefState = {
         intake,
         inferred,
@@ -491,7 +549,10 @@ Rules:
   }, [intake, goToStep, apiKeyValue]);
 
   const continueToResearch = useCallback(() => {
-    const layers = brief.proposedLayers && brief.proposedLayers.length > 0 ? brief.proposedLayers : mergedFromBrief;
+    const layers =
+      brief.proposedLayers && brief.proposedLayers.length > 0
+        ? brief.proposedLayers
+        : mergedFromBrief;
     setResearchOutputVisible(true);
     setCompletedSteps((s) => new Set([...Array.from(s), 2]));
     goToStep(3);
@@ -509,56 +570,82 @@ Rules:
         partnerResearch: brief.partnerResearch,
         discoveredSections: brief.discoveredSections,
         sectionsOverride: layers,
-      })
+      }),
     );
-  }, [brief.proposedLayers, brief.partnerResearch, brief.discoveredSections, mergedFromBrief, intake, goToStep, analyzeSection]);
+  }, [
+    brief.proposedLayers,
+    brief.partnerResearch,
+    brief.discoveredSections,
+    mergedFromBrief,
+    intake,
+    goToStep,
+    analyzeSection,
+  ]);
 
-  const selectOption = useCallback((secId: string, index: number, name: string) => {
-    setSdsState((prev) => {
-      const current = prev[secId];
-      const wasLocked = current?.status === "locked";
-      const selectionChanged =
-        current?.selectedOption?.index !== index || current?.selectedOption?.name !== name;
-      const shouldUnlock = wasLocked && selectionChanged;
-      const sec = researchSections.find((s) => s.id === secId);
-      const newChatSeed = sec
-        ? [{ role: "assistant" as const, content: `You've selected ${name} for ${sec.label.toLowerCase()}. Ask me why, push back, or lock this decision when ready.` }]
-        : [];
-      return {
-        ...prev,
-        [secId]: {
-          ...prev[secId],
-          selectedOption: { index, name },
-          ...(shouldUnlock
-            ? {
-                status: "ready",
-                decisionRecord: undefined,
-                chatHistory: newChatSeed,
-              }
-            : {}),
-        },
-      };
-    });
-  }, [researchSections]);
+  const selectOption = useCallback(
+    (secId: string, index: number, name: string) => {
+      setSdsState((prev) => {
+        const current = prev[secId];
+        const wasLocked = current?.status === "locked";
+        const selectionChanged =
+          current?.selectedOption?.index !== index ||
+          current?.selectedOption?.name !== name;
+        const shouldUnlock = wasLocked && selectionChanged;
+        const sec = researchSections.find((s) => s.id === secId);
+        const newChatSeed = sec
+          ? [
+              {
+                role: "assistant" as const,
+                content: `You've selected ${name} for ${sec.label.toLowerCase()}. Ask me why, push back, or lock this decision when ready.`,
+              },
+            ]
+          : [];
+        return {
+          ...prev,
+          [secId]: {
+            ...prev[secId],
+            selectedOption: { index, name },
+            ...(shouldUnlock
+              ? {
+                  status: "ready",
+                  decisionRecord: undefined,
+                  chatHistory: newChatSeed,
+                }
+              : {}),
+          },
+        };
+      });
+    },
+    [researchSections],
+  );
 
-  const addChatMsg = useCallback((secId: string, role: string, text: string) => {
-    setSdsState((prev) => {
-      const next = { ...prev };
-      const sec = next[secId] || { status: "pending", chatHistory: [], selectedOption: null };
-      next[secId] = {
-        ...sec,
-        chatHistory: [
-          ...sec.chatHistory,
-          { role: role === "user" ? "user" : "assistant", content: text },
-        ],
-      };
-      return next;
-    });
-  }, []);
+  const addChatMsg = useCallback(
+    (secId: string, role: string, text: string) => {
+      setSdsState((prev) => {
+        const next = { ...prev };
+        const sec = next[secId] || {
+          status: "pending",
+          chatHistory: [],
+          selectedOption: null,
+        };
+        next[secId] = {
+          ...sec,
+          chatHistory: [
+            ...sec.chatHistory,
+            { role: role === "user" ? "user" : "assistant", content: text },
+          ],
+        };
+        return next;
+      });
+    },
+    [],
+  );
 
   const sendChat = useCallback(
     async (secId: string) => {
-      const input = document.getElementById(`chat-input-${secId}`) as HTMLInputElement | null;
+      const input = document.getElementById(
+        `chat-input-${secId}`,
+      ) as HTMLInputElement | null;
       if (!input) return;
       const msg = input.value.trim();
       if (!msg) return;
@@ -577,7 +664,7 @@ Rules:
         const reply = await callClaudeWithKeyCheck(
           sys,
           `${contextPrefix}\n\n${messages.map((m) => m.role + ": " + m.content).join("\n")}`,
-          apiKeyValue
+          apiKeyValue,
         );
         addChatMsg(secId, "ai", reply);
         const optNames = (data?.options || []).map((o) => o.name.toLowerCase());
@@ -594,66 +681,104 @@ Rules:
           }
         });
       } catch (e) {
-        addChatMsg(secId, "ai", `Sorry, hit an error: ${e instanceof Error ? e.message : String(e)}`);
+        addChatMsg(
+          secId,
+          "ai",
+          `Sorry, hit an error: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
     },
-    [brief.intake, sdsState, addChatMsg, selectOption, apiKeyValue, researchSections, callClaudeWithKeyCheck]
+    [
+      brief.intake,
+      sdsState,
+      addChatMsg,
+      selectOption,
+      apiKeyValue,
+      researchSections,
+      callClaudeWithKeyCheck,
+    ],
   );
 
-  const lockSection = useCallback((secId: string) => {
-    setSdsState((prev) => ({
-      ...prev,
-      [secId]: {
-        ...prev[secId],
-        status: "locked",
-      },
-    }));
-    persistSession();
-  }, [persistSession]);
+  const lockSection = useCallback(
+    (secId: string) => {
+      setSdsState((prev) => ({
+        ...prev,
+        [secId]: {
+          ...prev[secId],
+          status: "locked",
+        },
+      }));
+      persistSession();
+    },
+    [persistSession],
+  );
 
-  const [customOptionLoading, setCustomOptionLoading] = useState<string | null>(null);
+  const [customOptionLoading, setCustomOptionLoading] = useState<string | null>(
+    null,
+  );
   const submitCustomOption = useCallback(
     async (secId: string) => {
       const userText = window.prompt(
-        "Describe your option (e.g. \"We'll use our internal Foo service\" or \"Custom in-house solution\"):"
+        'Describe your option (e.g. "We\'ll use our internal Foo service" or "Custom in-house solution"):',
       );
       if (!userText?.trim()) return;
       setCustomOptionLoading(secId);
       try {
-        const sys = "You are a technical editor. Rewrite the user's architecture choice as a clear, concise option. Return ONLY valid JSON, no markdown: { \"name\": \"Short option name\", \"reason\": \"1-2 sentences explaining why this fits the project.\" }";
-        const raw = await callClaudeWithKeyCheck(sys, userText.trim(), apiKeyValue);
-        const parsed = safeParseJSON<{ name?: string; reason?: string }>(raw.replace(/```json|```/gi, "").trim());
+        const sys =
+          'You are a technical editor. Rewrite the user\'s architecture choice as a clear, concise option. Return ONLY valid JSON, no markdown: { "name": "Short option name", "reason": "1-2 sentences explaining why this fits the project." }';
+        const raw = await callClaudeWithKeyCheck(
+          sys,
+          userText.trim(),
+          apiKeyValue,
+        );
+        const parsed = safeParseJSON<{ name?: string; reason?: string }>(
+          raw.replace(/```json|```/gi, "").trim(),
+        );
         const name = (parsed?.name ?? userText).trim().slice(0, 120);
-        const reason = (parsed?.reason ?? "Custom choice.").trim().slice(0, 300);
+        const reason = (parsed?.reason ?? "Custom choice.")
+          .trim()
+          .slice(0, 300);
         setSdsState((prev) => {
           const sec = prev[secId];
-          const options = [...(sec?.data?.options || []), { name, verdict: "recommended" as const, reason }];
+          const options = [
+            ...(sec?.data?.options || []),
+            { name, verdict: "recommended" as const, reason },
+          ];
           const index = options.length - 1;
           return {
             ...prev,
             [secId]: {
               ...prev[secId],
-              data: sec?.data ? { ...sec.data, options } : { recommendation: sec?.data?.recommendation ?? "", options },
+              data: sec?.data
+                ? { ...sec.data, options }
+                : { recommendation: sec?.data?.recommendation ?? "", options },
               selectedOption: { index, name },
               status: "ready",
               decisionRecord: undefined,
               chatHistory: [
                 ...(sec?.chatHistory || []),
-                { role: "assistant", content: `You've selected "${name}" (your custom option). You can lock this decision when ready.` },
+                {
+                  role: "assistant",
+                  content: `You've selected "${name}" (your custom option). You can lock this decision when ready.`,
+                },
               ],
             },
           };
         });
         persistSession();
       } catch (e) {
-        alert(`Could not rewrite option: ${e instanceof Error ? e.message : String(e)}`);
+        alert(
+          `Could not rewrite option: ${e instanceof Error ? e.message : String(e)}`,
+        );
       }
       setCustomOptionLoading(null);
     },
-    [callClaudeWithKeyCheck, apiKeyValue, persistSession]
+    [callClaudeWithKeyCheck, apiKeyValue, persistSession],
   );
 
-  const lockedCount = researchSections.filter((s) => sdsState[s.id]?.status === "locked").length;
+  const lockedCount = researchSections.filter(
+    (s) => sdsState[s.id]?.status === "locked",
+  ).length;
   const totalSections = researchSections.length;
 
   const runPRD = useCallback(async () => {
@@ -664,7 +789,8 @@ Rules:
 
     const intakeData = intake;
     const inf = brief.inferred || {};
-    const companyProfile = brief.partnerResearch?.summary || brief.companyProfile || "";
+    const companyProfile =
+      brief.partnerResearch?.summary || brief.companyProfile || "";
     const grounding = getResearchGrounding(brief.partnerResearch, inf);
     const partnerNotes = [
       `Partner Domain: ${grounding.domain}`,
@@ -701,10 +827,15 @@ ALTERNATIVES CONSIDERED: [what else was evaluated and why rejected]
 TRADE-OFFS ACCEPTED: [what we're giving up]
 REVIEW NOTES: [anything surfaced in discussion]`;
       try {
-        const record = await callClaudeWithKeyCheck(decisionRecordSys, prompt, apiKeyValue);
+        const record = await callClaudeWithKeyCheck(
+          decisionRecordSys,
+          prompt,
+          apiKeyValue,
+        );
         newRecords[sec.id] = record;
       } catch {
-        newRecords[sec.id] = `${sec.label}: ${selected?.name || "default"} (record generation failed)`;
+        newRecords[sec.id] =
+          `${sec.label}: ${selected?.name || "default"} (record generation failed)`;
       }
     }
 
@@ -716,13 +847,16 @@ REVIEW NOTES: [anything surfaced in discussion]`;
       return next;
     });
 
-    const decisionRecords = researchSections.map((sec) => {
-      const s = sdsState[sec.id];
-      const record = newRecords[sec.id] ?? s?.decisionRecord;
-      const chosen = s?.selectedOption?.name || "default";
-      const text = record ?? `${sec.label}: ${chosen} (selected, not yet locked)`;
-      return `### ${sec.label}\n${text}`;
-    }).join("\n\n");
+    const decisionRecords = researchSections
+      .map((sec) => {
+        const s = sdsState[sec.id];
+        const record = newRecords[sec.id] ?? s?.decisionRecord;
+        const chosen = s?.selectedOption?.name || "default";
+        const text =
+          record ?? `${sec.label}: ${chosen} (selected, not yet locked)`;
+        return `### ${sec.label}\n${text}`;
+      })
+      .join("\n\n");
 
     const sys = `You are a senior product manager. Write a comprehensive, developer-ready PRD in clean markdown format. Be specific, structured, and thorough. This document will be given directly to an AI coding agent to build from.`;
     const prompt = `Write a full Product Requirements Document (PRD) for the following project. Every section must be written through the lens of ${intakeData?.company}'s actual business context. The system design decisions below are FINAL — reflect them throughout the document.
@@ -779,7 +913,16 @@ Format as clean markdown with proper headers.`;
       setPrdOutputVisible(true);
     }
     setPrdLoading(false);
-  }, [brief, intake, sdsState, goToStep, persistSession, apiKeyValue, researchSections, callClaudeWithKeyCheck]);
+  }, [
+    brief,
+    intake,
+    sdsState,
+    goToStep,
+    persistSession,
+    apiKeyValue,
+    researchSections,
+    callClaudeWithKeyCheck,
+  ]);
 
   const runExecutionPlan = useCallback(async () => {
     setCompletedSteps((s) => new Set([...Array.from(s), 4]));
@@ -792,10 +935,13 @@ Format as clean markdown with proper headers.`;
     const inf2 = brief.inferred || {};
     const cp2 = brief.partnerResearch?.summary || brief.companyProfile || "";
     const grounding = getResearchGrounding(brief.partnerResearch, inf2);
-    const decisions2 = researchSections.map((sec) => {
-      const s = sdsState[sec.id];
-      return s?.selectedOption ? `${sec.label}: ${s.selectedOption.name}` : null;
-    })
+    const decisions2 = researchSections
+      .map((sec) => {
+        const s = sdsState[sec.id];
+        return s?.selectedOption
+          ? `${sec.label}: ${s.selectedOption.name}`
+          : null;
+      })
       .filter(Boolean)
       .join("\n");
     const context = `
@@ -827,39 +973,45 @@ PRD Summary: ${prd.substring(0, 600)}...
       setPlan((prev) => ({ ...prev, plan: planText }));
       setPlanStreamingText("");
 
-      const [projectbrief, productcontext, systempatterns, techcontext, activecontext, progressfile] =
-        await Promise.all([
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-          callClaudeWithKeyCheck(
-            sys,
-            `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
-            apiKeyValue
-          ),
-        ]);
+      const [
+        projectbrief,
+        productcontext,
+        systempatterns,
+        techcontext,
+        activecontext,
+        progressfile,
+      ] = await Promise.all([
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+        callClaudeWithKeyCheck(
+          sys,
+          `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
+          apiKeyValue,
+        ),
+      ]);
 
       setPlan((prev) => ({
         ...prev,
@@ -879,7 +1031,17 @@ PRD Summary: ${prd.substring(0, 600)}...
       setPlanOutputVisible(true);
     }
     setPlanLoading(false);
-  }, [brief, intake, sdsState, prd, goToStep, persistSession, apiKeyValue, researchSections, callClaudeWithKeyCheck]);
+  }, [
+    brief,
+    intake,
+    sdsState,
+    prd,
+    goToStep,
+    persistSession,
+    apiKeyValue,
+    researchSections,
+    callClaudeWithKeyCheck,
+  ]);
 
   const downloadAll = useCallback(async () => {
     const files: [string, string][] = [
@@ -906,7 +1068,8 @@ PRD Summary: ${prd.substring(0, 600)}...
   }, [prd, plan]);
 
   const startOver = useCallback(() => {
-    if (!confirm("Start a new project? This will clear all generated content.")) return;
+    if (!confirm("Start a new project? This will clear all generated content."))
+      return;
     setCompletedSteps(new Set());
     setBrief({});
     setPrd("");
@@ -953,10 +1116,18 @@ PRD Summary: ${prd.substring(0, 600)}...
           <span style={{ flex: 1, color: "var(--text)" }}>
             ↺ <strong>Resume session:</strong> {restoreInfo}
           </span>
-          <button className="btn btn-primary" style={{ padding: "6px 14px", fontSize: 11 }} onClick={restoreSession}>
+          <button
+            className="btn btn-primary"
+            style={{ padding: "6px 14px", fontSize: 11 }}
+            onClick={restoreSession}
+          >
             Resume
           </button>
-          <button className="btn btn-secondary" style={{ padding: "6px 14px", fontSize: 11 }} onClick={discardSessionHandler}>
+          <button
+            className="btn btn-secondary"
+            style={{ padding: "6px 14px", fontSize: 11 }}
+            onClick={discardSessionHandler}
+          >
             Start fresh
           </button>
         </div>
@@ -965,7 +1136,9 @@ PRD Summary: ${prd.substring(0, 600)}...
       <header>
         <div className="header-tag">{"// cursor + claude code workflow"}</div>
         <h1>Project Kickstarter</h1>
-        <p className="subtitle">Brief → Proposing layers → Research → PRD → Plan → Export</p>
+        <p className="subtitle">
+          Brief → Proposing layers → Research → PRD → Plan → Export
+        </p>
 
         <div className="api-key-strip">
           <button
@@ -974,28 +1147,58 @@ PRD Summary: ${prd.substring(0, 600)}...
             onClick={() => setShowApiKeyPanel((v) => !v)}
             aria-expanded={showApiKeyPanel}
           >
-            {hasStoredApiKey ? "✓ API key saved (persists in this browser)" : "⚙ Add your Anthropic API key (for demo)"}
+            {hasStoredApiKey
+              ? "✓ API key saved (persists in this browser)"
+              : "⚙ Add your Anthropic API key (for demo)"}
           </button>
           {showApiKeyPanel && (
             <div className="api-key-panel">
               {apiKeyError && (
-                <div className="alert alert-warning" style={{ marginBottom: 12 }}>
+                <div
+                  className="alert alert-warning"
+                  style={{ marginBottom: 12 }}
+                >
                   {apiKeyError}
                 </div>
               )}
               {apiKeySavedFeedback && (
-                <div className="alert alert-success" style={{ marginBottom: 12 }}>
-                  Key saved. It will persist in this browser so you don&apos;t have to re-enter it. Use &quot;Preview Inferred Details&quot; or &quot;Run Research &amp; Continue&quot; below.
+                <div
+                  className="alert alert-success"
+                  style={{ marginBottom: 12 }}
+                >
+                  Key saved. It will persist in this browser so you don&apos;t
+                  have to re-enter it. Use &quot;Preview Inferred Details&quot;
+                  or &quot;Run Research &amp; Continue&quot; below.
                 </div>
               )}
               <p className="section-desc" style={{ marginBottom: 12 }}>
-                Paste your Anthropic API key below and click Save. The app will use it for the next action (e.g. Run Research). Get a key at{" "}
-                <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" style={{ color: "var(--accent)" }}>console.anthropic.com</a>.
+                Paste your Anthropic API key below and click Save. The app will
+                use it for the next action (e.g. Run Research). Get a key at{" "}
+                <a
+                  href="https://console.anthropic.com/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--accent)" }}
+                >
+                  console.anthropic.com
+                </a>
+                .
               </p>
               <div className="trust-note">
-                <strong>Trust &amp; privacy</strong> — Your key is stored only in this browser (localStorage) and is not sent to our server except to forward each request to Anthropic. We do not log or store it. You can verify this in the source: <code>app/api/claude/route.ts</code>.
+                <strong>Trust &amp; privacy</strong> — Your key is stored only
+                in this browser (localStorage) and is not sent to our server
+                except to forward each request to Anthropic. We do not log or
+                store it. You can verify this in the source:{" "}
+                <code>app/api/claude/route.ts</code>.
               </div>
-              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  display: "flex",
+                  gap: 8,
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                }}
+              >
                 <input
                   type="password"
                   className="api-key-input"
@@ -1072,10 +1275,15 @@ PRD Summary: ${prd.substring(0, 600)}...
       </div>
 
       {/* Panel 1: Brief */}
-      <div className={`panel ${currentStep === 1 ? "active" : ""}`} id="panel-1">
+      <div
+        className={`panel ${currentStep === 1 ? "active" : ""}`}
+        id="panel-1"
+      >
         <div className="section-title">Project Intake</div>
         <p className="section-desc">
-          Fill in the client&apos;s project details. Claude will research the company first — understanding who they are, what they build, and who their users are — then generate every document through that lens.
+          Fill in the client&apos;s project details. Claude will research the
+          company first — understanding who they are, what they build, and who
+          their users are — then generate every document through that lens.
         </p>
 
         <div className="grid-2">
@@ -1084,7 +1292,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <input
               type="text"
               value={intake.company}
-              onChange={(e) => setIntake((i) => ({ ...i, company: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, company: e.target.value }))
+              }
               placeholder="fake company"
             />
           </div>
@@ -1093,7 +1303,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <input
               type="text"
               value={intake.website}
-              onChange={(e) => setIntake((i) => ({ ...i, website: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, website: e.target.value }))
+              }
               placeholder="fake website"
             />
           </div>
@@ -1105,7 +1317,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <input
               type="text"
               value={intake.projectName}
-              onChange={(e) => setIntake((i) => ({ ...i, projectName: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, projectName: e.target.value }))
+              }
               placeholder="awesome project name"
             />
           </div>
@@ -1113,7 +1327,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <label>Status</label>
             <select
               value={intake.status}
-              onChange={(e) => setIntake((i) => ({ ...i, status: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, status: e.target.value }))
+              }
             >
               <option value="ACTIVE">ACTIVE</option>
               <option value="PLANNING">PLANNING</option>
@@ -1127,7 +1343,9 @@ PRD Summary: ${prd.substring(0, 600)}...
           <label>Problem Statement</label>
           <textarea
             value={intake.problemStatement}
-            onChange={(e) => setIntake((i) => ({ ...i, problemStatement: e.target.value }))}
+            onChange={(e) =>
+              setIntake((i) => ({ ...i, problemStatement: e.target.value }))
+            }
             style={{ minHeight: 120 }}
             placeholder="Describe the problem and what success looks like..."
           />
@@ -1137,7 +1355,9 @@ PRD Summary: ${prd.substring(0, 600)}...
           <label>Functional Requirements</label>
           <textarea
             value={intake.functionalReqs}
-            onChange={(e) => setIntake((i) => ({ ...i, functionalReqs: e.target.value }))}
+            onChange={(e) =>
+              setIntake((i) => ({ ...i, functionalReqs: e.target.value }))
+            }
             style={{ minHeight: 90 }}
             placeholder="List main features or requirements..."
           />
@@ -1149,7 +1369,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <input
               type="text"
               value={intake.languages}
-              onChange={(e) => setIntake((i) => ({ ...i, languages: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, languages: e.target.value }))
+              }
               placeholder="preferred languages or stack"
             />
           </div>
@@ -1158,7 +1380,9 @@ PRD Summary: ${prd.substring(0, 600)}...
             <input
               type="text"
               value={intake.techContact}
-              onChange={(e) => setIntake((i) => ({ ...i, techContact: e.target.value }))}
+              onChange={(e) =>
+                setIntake((i) => ({ ...i, techContact: e.target.value }))
+              }
               placeholder="fake person name"
             />
           </div>
@@ -1169,7 +1393,9 @@ PRD Summary: ${prd.substring(0, 600)}...
           <input
             type="text"
             value={intake.additionalNotes}
-            onChange={(e) => setIntake((i) => ({ ...i, additionalNotes: e.target.value }))}
+            onChange={(e) =>
+              setIntake((i) => ({ ...i, additionalNotes: e.target.value }))
+            }
             placeholder="Constraints, integrations, or compliance needs..."
           />
         </div>
@@ -1179,13 +1405,24 @@ PRD Summary: ${prd.substring(0, 600)}...
             <div className="inferred-label">⚙ Inferred from intake</div>
             <div>
               <div style={{ marginBottom: 6 }}>
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}>Domain: </strong>
-                <span className="inferred-tag">{brief.inferred.domain || "—"}</span>
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}> Type: </strong>
-                <span className="inferred-tag">{brief.inferred.projectType || "—"}</span>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  Domain:{" "}
+                </strong>
+                <span className="inferred-tag">
+                  {brief.inferred.domain || "—"}
+                </span>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  {" "}
+                  Type:{" "}
+                </strong>
+                <span className="inferred-tag">
+                  {brief.inferred.projectType || "—"}
+                </span>
               </div>
               <div style={{ marginBottom: 6 }}>
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}>Target Users: </strong>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  Target Users:{" "}
+                </strong>
                 {(brief.inferred.targetUsers || []).map((u) => (
                   <span key={u} className="inferred-tag">
                     {u}
@@ -1193,7 +1430,9 @@ PRD Summary: ${prd.substring(0, 600)}...
                 ))}
               </div>
               <div style={{ marginBottom: 6 }}>
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}>Full Stack: </strong>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  Full Stack:{" "}
+                </strong>
                 {(brief.inferred.stack || []).map((s) => (
                   <span key={s} className="inferred-tag">
                     {s}
@@ -1201,7 +1440,9 @@ PRD Summary: ${prd.substring(0, 600)}...
                 ))}
               </div>
               <div style={{ marginBottom: 4 }}>
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}>Constraints: </strong>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  Constraints:{" "}
+                </strong>
                 {(brief.inferred.constraints || []).length
                   ? brief.inferred.constraints!.map((c) => (
                       <span key={c} className="inferred-tag">
@@ -1209,7 +1450,10 @@ PRD Summary: ${prd.substring(0, 600)}...
                       </span>
                     ))
                   : "none detected"}
-                <strong style={{ color: "var(--muted)", fontSize: 11 }}> Integrations: </strong>
+                <strong style={{ color: "var(--muted)", fontSize: 11 }}>
+                  {" "}
+                  Integrations:{" "}
+                </strong>
                 {(brief.inferred.integrations || []).map((i) => (
                   <span key={i} className="inferred-tag">
                     {i}
@@ -1221,18 +1465,29 @@ PRD Summary: ${prd.substring(0, 600)}...
         )}
 
         <div className="btn-row">
-          <button className="btn btn-secondary" onClick={inferFromBrief} disabled={inferLoading}>
+          <button
+            className="btn btn-secondary"
+            onClick={inferFromBrief}
+            disabled={inferLoading}
+          >
             {inferLoading ? "...inferring" : "🔎 Preview Inferred Details"}
           </button>
-          <button className="btn btn-primary" onClick={runResearch}>⚡ Run Research & Continue</button>
+          <button className="btn btn-primary" onClick={runResearch}>
+            ⚡ Run Research & Continue
+          </button>
         </div>
       </div>
 
       {/* Panel 2: Proposing layers */}
-      <div className={`panel ${currentStep === 2 ? "active" : ""}`} id="panel-2">
+      <div
+        className={`panel ${currentStep === 2 ? "active" : ""}`}
+        id="panel-2"
+      >
         <div className="section-title">Proposing layers</div>
         <p className="section-desc">
-          Review recommended layers and why each is needed. Remove any you don&apos;t need, add any that are missing, then continue to research options for each layer.
+          Review recommended layers and why each is needed. Remove any you
+          don&apos;t need, add any that are missing, then continue to research
+          options for each layer.
         </p>
 
         {currentStep === 2 && researchLoading && (
@@ -1251,103 +1506,162 @@ PRD Summary: ${prd.substring(0, 600)}...
           </div>
         )}
 
-        {currentStep === 2 && !researchLoading && !researchError && (brief.proposedLayers?.length ?? 0) > 0 && (
-          <div className="output-card" style={{ marginBottom: 16 }}>
-            <div className="output-card-header">
-              <div className="card-title">Recommended layers</div>
-            </div>
-            <div className="output-card-body open">
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {(brief.proposedLayers || []).map((section, index) => (
-                  <div
-                    key={section.id}
-                    style={{
-                      border: "1px solid rgba(255,255,255,0.12)",
-                      borderRadius: 8,
-                      padding: 14,
-                      display: "flex",
-                      flexDirection: "column",
-                      gap: 8,
-                    }}
-                  >
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
-                      <div>
-                        <strong style={{ fontSize: 15 }}>{section.label}</strong>
-                        {section.sub && (
-                          <div style={{ color: "var(--muted)", fontSize: 12, marginTop: 2 }}>{section.sub}</div>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        className="btn btn-secondary"
-                        style={{ padding: "4px 10px", fontSize: 11 }}
-                        onClick={() => {
-                          const next = (brief.proposedLayers || []).filter((_, i) => i !== index);
-                          setBrief((b) => ({ ...b, proposedLayers: next.length ? next : undefined }));
+        {currentStep === 2 &&
+          !researchLoading &&
+          !researchError &&
+          (brief.proposedLayers?.length ?? 0) > 0 && (
+            <div className="output-card" style={{ marginBottom: 16 }}>
+              <div className="output-card-header">
+                <div className="card-title">Recommended layers</div>
+              </div>
+              <div className="output-card-body open">
+                <div
+                  style={{ display: "flex", flexDirection: "column", gap: 12 }}
+                >
+                  {(brief.proposedLayers || []).map((section, index) => (
+                    <div
+                      key={section.id}
+                      style={{
+                        border: "1px solid rgba(255,255,255,0.12)",
+                        borderRadius: 8,
+                        padding: 14,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 8,
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          gap: 12,
                         }}
                       >
-                        Remove
-                      </button>
+                        <div>
+                          <strong style={{ fontSize: 15 }}>
+                            {section.label}
+                          </strong>
+                          {section.sub && (
+                            <div
+                              style={{
+                                color: "var(--muted)",
+                                fontSize: 12,
+                                marginTop: 2,
+                              }}
+                            >
+                              {section.sub}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          style={{ padding: "4px 10px", fontSize: 11 }}
+                          onClick={() => {
+                            const next = (brief.proposedLayers || []).filter(
+                              (_, i) => i !== index,
+                            );
+                            setBrief((b) => ({
+                              ...b,
+                              proposedLayers: next.length ? next : undefined,
+                            }));
+                          }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                      <div style={{ fontSize: 13, color: "var(--text)" }}>
+                        <span style={{ color: "var(--muted)", marginRight: 6 }}>
+                          Why we need it:
+                        </span>
+                        {section.reason || "—"}
+                      </div>
                     </div>
-                    <div style={{ fontSize: 13, color: "var(--text)" }}>
-                      <span style={{ color: "var(--muted)", marginRight: 6 }}>Why we need it:</span>
-                      {section.reason || "—"}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 16, display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center" }}>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => {
-                    const label = window.prompt("Layer name (e.g. Search / Data Exploration):");
-                    if (!label?.trim()) return;
-                    const reason = window.prompt("Why we need this layer (optional):")?.trim() || "User-added layer.";
-                    const id = slugify(label);
-                    const existingIds = new Set((brief.proposedLayers || []).map((s) => s.id));
-                    let finalId = id;
-                    let n = 1;
-                    while (existingIds.has(finalId)) {
-                      finalId = `${id}-${++n}`;
-                    }
-                    const newSection: ResearchSection = {
-                      id: finalId,
-                      icon: "🧩",
-                      label: label.trim(),
-                      sub: "",
-                      reason,
-                      priority: "required",
-                      category: "dynamic",
-                    };
-                    setBrief((b) => ({
-                      ...b,
-                      proposedLayers: [...(b.proposedLayers || []), newSection],
-                    }));
+                  ))}
+                </div>
+                <div
+                  style={{
+                    marginTop: 16,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 12,
+                    alignItems: "center",
                   }}
                 >
-                  + Add layer
-                </button>
-                <button type="button" className="btn btn-primary" onClick={continueToResearch}>
-                  Continue to Research →
-                </button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      const label = window.prompt(
+                        "Layer name (e.g. Search / Data Exploration):",
+                      );
+                      if (!label?.trim()) return;
+                      const reason =
+                        window
+                          .prompt("Why we need this layer (optional):")
+                          ?.trim() || "User-added layer.";
+                      const id = slugify(label);
+                      const existingIds = new Set(
+                        (brief.proposedLayers || []).map((s) => s.id),
+                      );
+                      let finalId = id;
+                      let n = 1;
+                      while (existingIds.has(finalId)) {
+                        finalId = `${id}-${++n}`;
+                      }
+                      const newSection: ResearchSection = {
+                        id: finalId,
+                        icon: "🧩",
+                        label: label.trim(),
+                        sub: "",
+                        reason,
+                        priority: "required",
+                        category: "dynamic",
+                      };
+                      setBrief((b) => ({
+                        ...b,
+                        proposedLayers: [
+                          ...(b.proposedLayers || []),
+                          newSection,
+                        ],
+                      }));
+                    }}
+                  >
+                    + Add layer
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-primary"
+                    onClick={continueToResearch}
+                  >
+                    Continue to Research →
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {currentStep === 2 && !researchLoading && !researchError && (!brief.proposedLayers || brief.proposedLayers.length === 0) && (
-          <p className="section-desc">
-            Run &quot;Run Research &amp; Continue&quot; from the Brief step to get recommended layers, then return here to review and edit them.
-          </p>
-        )}
+        {currentStep === 2 &&
+          !researchLoading &&
+          !researchError &&
+          (!brief.proposedLayers || brief.proposedLayers.length === 0) && (
+            <p className="section-desc">
+              Run &quot;Run Research &amp; Continue&quot; from the Brief step to
+              get recommended layers, then return here to review and edit them.
+            </p>
+          )}
       </div>
 
       {/* Panel 3: Research */}
-      <div className={`panel ${currentStep === 3 ? "active" : ""}`} id="panel-3">
+      <div
+        className={`panel ${currentStep === 3 ? "active" : ""}`}
+        id="panel-3"
+      >
         <div className="section-title">System Design Review</div>
         <p className="section-desc">
-          Claude analyzes each layer of the system and recommends options. Debate any decision inline — then lock it in.
+          Claude analyzes each layer of the system and recommends options.
+          Debate any decision inline — then lock it in.
         </p>
 
         {!researchOutputVisible && !researchError && (
@@ -1371,21 +1685,47 @@ PRD Summary: ${prd.substring(0, 600)}...
             {brief.partnerResearch && (
               <div className="output-card" style={{ marginBottom: 16 }}>
                 <div className="output-card-header">
-                  <div className="card-title">🏢 Partner Context <span className="card-badge">research</span></div>
+                  <div className="card-title">
+                    🏢 Partner Context{" "}
+                    <span className="card-badge">research</span>
+                  </div>
                 </div>
                 <div className="output-card-body open">
-                  <div className="output-content">{brief.partnerResearch.summary}</div>
-                  <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <span className="inferred-tag">{brief.partnerResearch.domain || "Unknown domain"}</span>
+                  <div className="output-content">
+                    {brief.partnerResearch.summary}
+                  </div>
+                  <div
+                    style={{
+                      marginTop: 12,
+                      display: "flex",
+                      flexWrap: "wrap",
+                      gap: 8,
+                    }}
+                  >
+                    <span className="inferred-tag">
+                      {brief.partnerResearch.domain || "Unknown domain"}
+                    </span>
                     {(brief.partnerResearch.targetUsers || []).map((user) => (
-                      <span key={user} className="inferred-tag">{user}</span>
+                      <span key={user} className="inferred-tag">
+                        {user}
+                      </span>
                     ))}
-                    {(brief.partnerResearch.constraints || []).map((constraint) => (
-                      <span key={constraint} className="inferred-tag">{constraint}</span>
-                    ))}
+                    {(brief.partnerResearch.constraints || []).map(
+                      (constraint) => (
+                        <span key={constraint} className="inferred-tag">
+                          {constraint}
+                        </span>
+                      ),
+                    )}
                   </div>
                   {!!brief.partnerResearch.sources?.length && (
-                    <div style={{ marginTop: 12, fontSize: 12, color: "var(--muted)" }}>
+                    <div
+                      style={{
+                        marginTop: 12,
+                        fontSize: 12,
+                        color: "var(--muted)",
+                      }}
+                    >
                       Sources used:{" "}
                       {brief.partnerResearch.sources
                         .map((source) => source.label)
@@ -1399,17 +1739,28 @@ PRD Summary: ${prd.substring(0, 600)}...
             {brief.inferred && (
               <div className="output-card" style={{ marginBottom: 16 }}>
                 <div className="output-card-header">
-                  <div className="card-title">⚙ Inferred Project Context <span className="card-badge">context</span></div>
+                  <div className="card-title">
+                    ⚙ Inferred Project Context{" "}
+                    <span className="card-badge">context</span>
+                  </div>
                 </div>
                 <div className="output-card-body open">
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                    <span className="inferred-tag">{brief.inferred.domain || "Unknown domain"}</span>
-                    <span className="inferred-tag">{brief.inferred.projectType || "Unknown project type"}</span>
+                    <span className="inferred-tag">
+                      {brief.inferred.domain || "Unknown domain"}
+                    </span>
+                    <span className="inferred-tag">
+                      {brief.inferred.projectType || "Unknown project type"}
+                    </span>
                     {(brief.inferred.stack || []).map((item) => (
-                      <span key={item} className="inferred-tag">{item}</span>
+                      <span key={item} className="inferred-tag">
+                        {item}
+                      </span>
                     ))}
                     {(brief.inferred.integrations || []).map((item) => (
-                      <span key={item} className="inferred-tag">{item}</span>
+                      <span key={item} className="inferred-tag">
+                        {item}
+                      </span>
                     ))}
                   </div>
                 </div>
@@ -1419,30 +1770,77 @@ PRD Summary: ${prd.substring(0, 600)}...
             {!!brief.discoveredSections?.length && (
               <div className="output-card" style={{ marginBottom: 16 }}>
                 <div className="output-card-header">
-                  <div className="card-title">🧭 Discovered Layers <span className="card-badge">dynamic</span></div>
+                  <div className="card-title">
+                    🧭 Discovered Layers{" "}
+                    <span className="card-badge">dynamic</span>
+                  </div>
                 </div>
                 <div className="output-card-body open">
-                  <div style={{ marginBottom: 10, fontSize: 13, color: "var(--muted)" }}>
-                    The research pass inferred additional layers from the brief and partner context.
+                  <div
+                    style={{
+                      marginBottom: 10,
+                      fontSize: 13,
+                      color: "var(--muted)",
+                    }}
+                  >
+                    The research pass inferred additional layers from the brief
+                    and partner context.
                   </div>
                   <div style={{ display: "grid", gap: 16 }}>
                     {(["required", "optional"] as const).map((priority) => {
-                      const sections = brief.discoveredSections?.filter((section) => section.priority === priority) || [];
+                      const sections =
+                        brief.discoveredSections?.filter(
+                          (section) => section.priority === priority,
+                        ) || [];
                       if (!sections.length) return null;
                       return (
                         <div key={priority}>
-                          <div style={{ marginBottom: 8, fontSize: 12, color: "var(--muted)", textTransform: "uppercase", letterSpacing: 1 }}>
+                          <div
+                            style={{
+                              marginBottom: 8,
+                              fontSize: 12,
+                              color: "var(--muted)",
+                              textTransform: "uppercase",
+                              letterSpacing: 1,
+                            }}
+                          >
                             {priority} layers
                           </div>
                           <div style={{ display: "grid", gap: 10 }}>
                             {sections.map((section) => (
-                              <div key={section.id} style={{ border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8, padding: 12 }}>
-                                <div style={{ display: "flex", justifyContent: "space-between", gap: 12, marginBottom: 6 }}>
+                              <div
+                                key={section.id}
+                                style={{
+                                  border: "1px solid rgba(255,255,255,0.08)",
+                                  borderRadius: 8,
+                                  padding: 12,
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    display: "flex",
+                                    justifyContent: "space-between",
+                                    gap: 12,
+                                    marginBottom: 6,
+                                  }}
+                                >
                                   <strong>{section.label}</strong>
-                                  <span className="card-badge">{section.priority}</span>
+                                  <span className="card-badge">
+                                    {section.priority}
+                                  </span>
                                 </div>
-                                <div style={{ color: "var(--muted)", fontSize: 12, marginBottom: 6 }}>{section.sub}</div>
-                                <div style={{ fontSize: 13 }}>{section.reason}</div>
+                                <div
+                                  style={{
+                                    color: "var(--muted)",
+                                    fontSize: 12,
+                                    marginBottom: 6,
+                                  }}
+                                >
+                                  {section.sub}
+                                </div>
+                                <div style={{ fontSize: 13 }}>
+                                  {section.reason}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -1455,14 +1853,23 @@ PRD Summary: ${prd.substring(0, 600)}...
             )}
 
             <div className="sections-progress">
-              <span>{lockedCount} of {totalSections} sections locked</span>
+              <span>
+                {lockedCount} of {totalSections} sections locked
+              </span>
               <div className="progress-bar-track">
                 <div
                   className="progress-bar-fill"
-                  style={{ width: `${totalSections ? (lockedCount / totalSections) * 100 : 0}%` }}
+                  style={{
+                    width: `${totalSections ? (lockedCount / totalSections) * 100 : 0}%`,
+                  }}
                 />
               </div>
-              <span>{totalSections ? Math.round((lockedCount / totalSections) * 100) : 0}%</span>
+              <span>
+                {totalSections
+                  ? Math.round((lockedCount / totalSections) * 100)
+                  : 0}
+                %
+              </span>
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -1470,11 +1877,18 @@ PRD Summary: ${prd.substring(0, 600)}...
                 type="button"
                 className="btn btn-secondary"
                 onClick={() => {
-                  const label = window.prompt("Layer name (e.g. Search / Data Exploration):");
+                  const label = window.prompt(
+                    "Layer name (e.g. Search / Data Exploration):",
+                  );
                   if (!label?.trim()) return;
-                  const reason = window.prompt("Why we need this layer (optional):")?.trim() || "User-added layer.";
+                  const reason =
+                    window
+                      .prompt("Why we need this layer (optional):")
+                      ?.trim() || "User-added layer.";
                   const id = slugify(label);
-                  const existingIds = new Set(researchSections.map((s) => s.id));
+                  const existingIds = new Set(
+                    researchSections.map((s) => s.id),
+                  );
                   let finalId = id;
                   let n = 1;
                   while (existingIds.has(finalId)) finalId = `${id}-${++n}`;
@@ -1491,7 +1905,11 @@ PRD Summary: ${prd.substring(0, 600)}...
                   setBrief((b) => ({ ...b, proposedLayers: nextLayers }));
                   setSdsState((prev) => ({
                     ...prev,
-                    [finalId]: { status: "pending", chatHistory: [], selectedOption: null },
+                    [finalId]: {
+                      status: "pending",
+                      chatHistory: [],
+                      selectedOption: null,
+                    },
                   }));
                   analyzeSection(finalId, {
                     intake: brief.intake || intake,
@@ -1508,7 +1926,8 @@ PRD Summary: ${prd.substring(0, 600)}...
 
             {researchSections.map((sec) => {
               const sv = sdsState[sec.id];
-              const bodyOpen = sv?.status !== "locked" || openCards.has(`sds-body-${sec.id}`);
+              const bodyOpen =
+                sv?.status !== "locked" || openCards.has(`sds-body-${sec.id}`);
               return (
                 <div
                   key={sec.id}
@@ -1519,29 +1938,49 @@ PRD Summary: ${prd.substring(0, 600)}...
                     <span className="sds-label">{sec.label}</span>
                     <span className="sds-sublabel">{sec.sub}</span>
                     <span className={`sds-status ${sv?.status || "pending"}`}>
-                      {sv?.status === "locked" ? "✓ Locked" : sv?.status === "ready" ? "Ready" : sv?.status === "analyzing" ? "Analyzing..." : "Pending"}
+                      {sv?.status === "locked"
+                        ? "✓ Locked"
+                        : sv?.status === "ready"
+                          ? "Ready"
+                          : sv?.status === "analyzing"
+                            ? "Analyzing..."
+                            : "Pending"}
                     </span>
                   </div>
                   <div className={`sds-body ${bodyOpen ? "open" : ""}`}>
                     {sv?.data && (
                       <>
                         <div className="sds-rec">
-                          <div className="sds-rec-label">★ Recommendation & Rationale</div>
-                          <div className="sds-rec-content">{sv.data.recommendation}</div>
+                          <div className="sds-rec-label">
+                            ★ Recommendation & Rationale
+                          </div>
+                          <div className="sds-rec-content">
+                            {sv.data.recommendation}
+                          </div>
                         </div>
                         <div className="sds-options">
-                          <div className="sds-options-label">Options — click to select</div>
+                          <div className="sds-options-label">
+                            Options — click to select
+                          </div>
                           <div className="options-grid">
                             {(sv.data.options || []).map((opt, i) => (
                               <div
                                 key={i}
                                 className={`option-card ${opt.verdict === "recommended" ? "recommended" : ""} ${sv.selectedOption?.index === i ? "selected" : ""}`}
-                                onClick={() => selectOption(sec.id, i, opt.name)}
+                                onClick={() =>
+                                  selectOption(sec.id, i, opt.name)
+                                }
                               >
                                 <div className="option-check">✓</div>
                                 <div className="option-name">{opt.name}</div>
-                                <div className={`option-verdict ${opt.verdict === "recommended" ? "rec" : opt.verdict === "avoid" ? "avoid" : "alt"}`}>
-                                  {opt.verdict === "recommended" ? "★ Recommended" : opt.verdict === "avoid" ? "✗ Avoid" : "◇ Viable alternative"}
+                                <div
+                                  className={`option-verdict ${opt.verdict === "recommended" ? "rec" : opt.verdict === "avoid" ? "avoid" : "alt"}`}
+                                >
+                                  {opt.verdict === "recommended"
+                                    ? "★ Recommended"
+                                    : opt.verdict === "avoid"
+                                      ? "✗ Avoid"
+                                      : "◇ Viable alternative"}
                                 </div>
                                 <div className="option-desc">{opt.reason}</div>
                               </div>
@@ -1550,11 +1989,22 @@ PRD Summary: ${prd.substring(0, 600)}...
                               <div
                                 className="option-card alt"
                                 style={{ borderStyle: "dashed" }}
-                                onClick={() => customOptionLoading === sec.id ? undefined : submitCustomOption(sec.id)}
+                                onClick={() =>
+                                  customOptionLoading === sec.id
+                                    ? undefined
+                                    : submitCustomOption(sec.id)
+                                }
                               >
-                                <div className="option-name">E: None of the above</div>
-                                <div className="option-desc" style={{ color: "var(--muted)" }}>
-                                  {customOptionLoading === sec.id ? "Rewriting..." : "Enter your own option →"}
+                                <div className="option-name">
+                                  E: None of the above
+                                </div>
+                                <div
+                                  className="option-desc"
+                                  style={{ color: "var(--muted)" }}
+                                >
+                                  {customOptionLoading === sec.id
+                                    ? "Rewriting..."
+                                    : "Enter your own option →"}
                                 </div>
                               </div>
                             )}
@@ -1567,7 +2017,10 @@ PRD Summary: ${prd.substring(0, 600)}...
                         <div className="sds-chat">
                           <div className="chat-thread">
                             {(sv.chatHistory || []).map((m, i) => (
-                              <div key={i} className={`chat-msg ${m.role === "user" ? "user" : "ai"}`}>
+                              <div
+                                key={i}
+                                className={`chat-msg ${m.role === "user" ? "user" : "ai"}`}
+                              >
                                 {m.content}
                               </div>
                             ))}
@@ -1581,18 +2034,33 @@ PRD Summary: ${prd.substring(0, 600)}...
                                 if (e.key === "Enter") sendChat(sec.id);
                               }}
                             />
-                            <button className="chat-send" onClick={() => sendChat(sec.id)}>Send</button>
+                            <button
+                              className="chat-send"
+                              onClick={() => sendChat(sec.id)}
+                            >
+                              Send
+                            </button>
                           </div>
                         </div>
                         <div className="sds-lock-bar">
-                          <button className="lock-btn" onClick={() => lockSection(sec.id)}>Lock this decision</button>
-                          <span className="lock-hint">Select your preferred option above, debate in chat if needed, then lock to generate the Decision Record.</span>
+                          <button
+                            className="lock-btn"
+                            onClick={() => lockSection(sec.id)}
+                          >
+                            Lock this decision
+                          </button>
+                          <span className="lock-hint">
+                            Select your preferred option above, debate in chat
+                            if needed, then lock to generate the Decision
+                            Record.
+                          </span>
                         </div>
                       </>
                     )}
                     {sv?.status === "locked" && (
                       <div className="decision-record">
-                        {sv?.decisionRecord ?? "Decision record will be generated when you click Generate PRD below."}
+                        {sv?.decisionRecord ??
+                          "Decision record will be generated when you click Generate PRD below."}
                       </div>
                     )}
                   </div>
@@ -1602,18 +2070,38 @@ PRD Summary: ${prd.substring(0, 600)}...
 
             {lockedCount === totalSections ? (
               <div>
-                <div className="alert alert-success" style={{ marginBottom: 16 }}>
-                  ✓ All sections reviewed. Your decisions are locked and will flow into the PRD and memory bank.
+                <div
+                  className="alert alert-success"
+                  style={{ marginBottom: 16 }}
+                >
+                  ✓ All sections reviewed. Your decisions are locked and will
+                  flow into the PRD and memory bank.
                 </div>
                 <div className="btn-row">
-                  <button className="btn btn-primary" onClick={runPRD}>→ Generate PRD</button>
-                  <button className="btn btn-secondary" onClick={() => goToStep(2)}>← Edit layers</button>
-                  <button className="btn btn-secondary" onClick={() => goToStep(1)}>← Edit Intake</button>
+                  <button className="btn btn-primary" onClick={runPRD}>
+                    → Generate PRD
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => goToStep(2)}
+                  >
+                    ← Edit layers
+                  </button>
+                  <button
+                    className="btn btn-secondary"
+                    onClick={() => goToStep(1)}
+                  >
+                    ← Edit Intake
+                  </button>
                 </div>
               </div>
             ) : (
               <div style={{ marginTop: 16 }}>
-                <button className="btn btn-secondary" onClick={runPRD} style={{ opacity: 0.6 }}>
+                <button
+                  className="btn btn-secondary"
+                  onClick={runPRD}
+                  style={{ opacity: 0.6 }}
+                >
                   → Generate PRD with current decisions
                 </button>
               </div>
@@ -1623,15 +2111,22 @@ PRD Summary: ${prd.substring(0, 600)}...
       </div>
 
       {/* Panel 4: PRD */}
-      <div className={`panel ${currentStep === 4 ? "active" : ""}`} id="panel-4">
+      <div
+        className={`panel ${currentStep === 4 ? "active" : ""}`}
+        id="panel-4"
+      >
         <div className="section-title">Product Requirements Document</div>
-        <p className="section-desc">Full PRD generated from your brief and research — ready to paste into Claude Code.</p>
+        <p className="section-desc">
+          Full PRD generated from your brief and research — ready to paste into
+          Claude Code.
+        </p>
 
         {prdLoading && (
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
-              <span className="status-dot" /> Writing PRD with goals, user stories, features...
+              <span className="status-dot" /> Writing PRD with goals, user
+              stories, features...
             </div>
           </div>
         )}
@@ -1639,12 +2134,25 @@ PRD Summary: ${prd.substring(0, 600)}...
         {prdOutputVisible && !prdLoading && (
           <div>
             <div className="output-card">
-              <div className="output-card-header" onClick={() => toggleCard("prd-full")}>
-                <div className="card-title">📋 Full PRD <span className="card-badge green">PRD.md</span></div>
-                <span className={`chevron ${openCards.has("prd-full") ? "open" : ""}`}>▼</span>
+              <div
+                className="output-card-header"
+                onClick={() => toggleCard("prd-full")}
+              >
+                <div className="card-title">
+                  📋 Full PRD <span className="card-badge green">PRD.md</span>
+                </div>
+                <span
+                  className={`chevron ${openCards.has("prd-full") ? "open" : ""}`}
+                >
+                  ▼
+                </span>
               </div>
-              <div className={`output-card-body ${openCards.has("prd-full") ? "open" : ""}`}>
-                <div className="output-content" id="prd-content">{prd}</div>
+              <div
+                className={`output-card-body ${openCards.has("prd-full") ? "open" : ""}`}
+              >
+                <div className="output-content" id="prd-content">
+                  {prd}
+                </div>
                 <div style={{ marginTop: 10 }}>
                   <button
                     id="btn-copy-prd"
@@ -1657,23 +2165,34 @@ PRD Summary: ${prd.substring(0, 600)}...
               </div>
             </div>
             <div className="btn-row">
-              <button className="btn btn-primary" onClick={runExecutionPlan}>→ Generate Execution Plan</button>
-              <button className="btn btn-secondary" onClick={() => goToStep(3)}>← Back to Research</button>
+              <button className="btn btn-primary" onClick={runExecutionPlan}>
+                → Generate Execution Plan
+              </button>
+              <button className="btn btn-secondary" onClick={() => goToStep(3)}>
+                ← Back to Research
+              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* Panel 4: Plan */}
-      <div className={`panel ${currentStep === 5 ? "active" : ""}`} id="panel-5">
+      <div
+        className={`panel ${currentStep === 5 ? "active" : ""}`}
+        id="panel-5"
+      >
         <div className="section-title">Execution Plan + Memory Bank</div>
-        <p className="section-desc">Phased execution plan and all 6 memory-bank files — drop them straight into your Cursor project.</p>
+        <p className="section-desc">
+          Phased execution plan and all 6 memory-bank files — drop them straight
+          into your Cursor project.
+        </p>
 
         {planLoading && planStreamingText === "" && (
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
-              <span className="status-dot" /> Building phased plan + memory-bank files...
+              <span className="status-dot" /> Building phased plan + memory-bank
+              files...
             </div>
           </div>
         )}
@@ -1681,26 +2200,78 @@ PRD Summary: ${prd.substring(0, 600)}...
         {planOutputVisible && (
           <div>
             {[
-              { id: "ep-plan", title: "🗺️ Execution Plan", badge: "PLAN.md", badgeGreen: true, content: planStreamingText || plan.plan || "" },
-              { id: "mb-brief", title: "🧠 projectbrief.md", badge: "memory-bank", content: plan.projectbrief },
-              { id: "mb-product", title: "🧠 productContext.md", badge: "memory-bank", content: plan.productcontext },
-              { id: "mb-system", title: "🧠 systemPatterns.md", badge: "memory-bank", content: plan.systempatterns },
-              { id: "mb-tech", title: "🧠 techContext.md", badge: "memory-bank", content: plan.techcontext },
-              { id: "mb-active", title: "🧠 activeContext.md", badge: "memory-bank", content: plan.activecontext },
-              { id: "mb-progress", title: "🧠 progress.md", badge: "memory-bank", content: plan.progressfile },
+              {
+                id: "ep-plan",
+                title: "🗺️ Execution Plan",
+                badge: "PLAN.md",
+                badgeGreen: true,
+                content: planStreamingText || plan.plan || "",
+              },
+              {
+                id: "mb-brief",
+                title: "🧠 projectbrief.md",
+                badge: "memory-bank",
+                content: plan.projectbrief,
+              },
+              {
+                id: "mb-product",
+                title: "🧠 productContext.md",
+                badge: "memory-bank",
+                content: plan.productcontext,
+              },
+              {
+                id: "mb-system",
+                title: "🧠 systemPatterns.md",
+                badge: "memory-bank",
+                content: plan.systempatterns,
+              },
+              {
+                id: "mb-tech",
+                title: "🧠 techContext.md",
+                badge: "memory-bank",
+                content: plan.techcontext,
+              },
+              {
+                id: "mb-active",
+                title: "🧠 activeContext.md",
+                badge: "memory-bank",
+                content: plan.activecontext,
+              },
+              {
+                id: "mb-progress",
+                title: "🧠 progress.md",
+                badge: "memory-bank",
+                content: plan.progressfile,
+              },
             ].map(({ id, title, badge, badgeGreen, content }) => (
               <div key={id} className="output-card">
-                <div className="output-card-header" onClick={() => toggleCard(id)}>
-                  <div className="card-title">{title} <span className={`card-badge ${badgeGreen ? "green" : ""}`}>{badge}</span></div>
-                  <span className={`chevron ${openCards.has(id) ? "open" : ""}`}>▼</span>
+                <div
+                  className="output-card-header"
+                  onClick={() => toggleCard(id)}
+                >
+                  <div className="card-title">
+                    {title}{" "}
+                    <span className={`card-badge ${badgeGreen ? "green" : ""}`}>
+                      {badge}
+                    </span>
+                  </div>
+                  <span
+                    className={`chevron ${openCards.has(id) ? "open" : ""}`}
+                  >
+                    ▼
+                  </span>
                 </div>
-                <div className={`output-card-body ${openCards.has(id) ? "open" : ""}`}>
+                <div
+                  className={`output-card-body ${openCards.has(id) ? "open" : ""}`}
+                >
                   <div className="output-content">{content || ""}</div>
                   <div style={{ marginTop: 10 }}>
                     <button
                       id={`btn-copy-${id}`}
                       className="copy-btn"
-                      onClick={() => copyContent(content || "", `btn-copy-${id}`)}
+                      onClick={() =>
+                        copyContent(content || "", `btn-copy-${id}`)
+                      }
                     >
                       Copy
                     </button>
@@ -1709,66 +2280,134 @@ PRD Summary: ${prd.substring(0, 600)}...
               </div>
             ))}
             <div className="btn-row">
-              <button className="btn btn-success" onClick={() => goToStep(6)}>→ Get Setup Instructions</button>
-              <button className="btn btn-secondary" onClick={() => goToStep(4)}>← Back to PRD</button>
+              <button className="btn btn-success" onClick={() => goToStep(6)}>
+                → Get Setup Instructions
+              </button>
+              <button className="btn btn-secondary" onClick={() => goToStep(4)}>
+                ← Back to PRD
+              </button>
             </div>
           </div>
         )}
       </div>
 
       {/* Panel 6: Export */}
-      <div className={`panel ${currentStep === 6 ? "active" : ""}`} id="panel-6">
+      <div
+        className={`panel ${currentStep === 6 ? "active" : ""}`}
+        id="panel-6"
+      >
         <div className="section-title">Drop into Cursor / Claude Code</div>
-        <p className="section-desc">Your project scaffold is ready. Follow these steps to get Claude building immediately.</p>
+        <p className="section-desc">
+          Your project scaffold is ready. Follow these steps to get Claude
+          building immediately.
+        </p>
 
         <div className="file-tree">
-          <div><span className="folder">📁 your-project/</span></div>
-          <div style={{ paddingLeft: 20 }}><span className="folder">📁 memory-bank/</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ projectbrief.md</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ productContext.md</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ systemPatterns.md</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ techContext.md</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ activeContext.md</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ progress.md</span></div>
-          <div style={{ paddingLeft: 20 }}><span className="folder">📁 .cursor/rules/</span></div>
-          <div style={{ paddingLeft: 40 }}><span className="file new">✦ journal.mdc</span> (from cursor ruleset)</div>
-          <div style={{ paddingLeft: 20 }}><span className="file new">✦ PRD.md</span></div>
-          <div style={{ paddingLeft: 20 }}><span className="file new">✦ PLAN.md</span></div>
-          <div style={{ paddingLeft: 20 }}><span className="file new">✦ CLAUDE.md</span> (your uploaded file)</div>
+          <div>
+            <span className="folder">📁 your-project/</span>
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="folder">📁 memory-bank/</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ projectbrief.md</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ productContext.md</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ systemPatterns.md</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ techContext.md</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ activeContext.md</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ progress.md</span>
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="folder">📁 .cursor/rules/</span>
+          </div>
+          <div style={{ paddingLeft: 40 }}>
+            <span className="file new">✦ journal.mdc</span> (from cursor
+            ruleset)
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="file new">✦ PRD.md</span>
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="file new">✦ PLAN.md</span>
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="file new">✦ CLAUDE.md</span> (your uploaded file)
+          </div>
         </div>
 
         <div className="instruction-box">
-          <strong>Step 1 — Create the project folder & paste files</strong><br />
-          Create a new folder. Inside it, create a <span className="cmd">memory-bank/</span> folder and paste each of the 6 memory-bank files in (copy them from Step 04). Also paste <span className="cmd">PRD.md</span> and <span className="cmd">PLAN.md</span> into the root.
+          <strong>Step 1 — Create the project folder & paste files</strong>
+          <br />
+          Create a new folder. Inside it, create a{" "}
+          <span className="cmd">memory-bank/</span> folder and paste each of the
+          6 memory-bank files in (copy them from Step 04). Also paste{" "}
+          <span className="cmd">PRD.md</span> and{" "}
+          <span className="cmd">PLAN.md</span> into the root.
         </div>
         <div className="instruction-box">
-          <strong>Step 2 — Add the Cursor rules</strong><br />
-          In Cursor: <span className="cmd">Settings → Cursor Rules</span> → paste in the ruleset from the gist (ipenywis memory bank rules). Then create <span className="cmd">.cursor/rules/journal.mdc</span>.
+          <strong>Step 2 — Add the Cursor rules</strong>
+          <br />
+          In Cursor: <span className="cmd">Settings → Cursor Rules</span> →
+          paste in the ruleset from the gist (ipenywis memory bank rules). Then
+          create <span className="cmd">.cursor/rules/journal.mdc</span>.
         </div>
         <div className="instruction-box">
-          <strong>Step 3 — Add your CLAUDE.md</strong><br />
-          Paste your <span className="cmd">CLAUDE.md</span> into the project root. Claude Code reads this automatically at the start of every session.
+          <strong>Step 3 — Add your CLAUDE.md</strong>
+          <br />
+          Paste your <span className="cmd">CLAUDE.md</span> into the project
+          root. Claude Code reads this automatically at the start of every
+          session.
         </div>
         <div className="instruction-box">
-          <strong>Step 4 — Open in Cursor, start with Plan Mode</strong><br />
-          Open the folder in Cursor. In the Claude Code panel, type:<br />
-          <span className="cmd">/plan — read all memory-bank files and PRD.md, then ask me clarifying questions before we begin Phase 1</span><br /><br />
-          Claude will read the full context, ask 4–6 questions, then present a plan for your approval before writing a single line of code.
+          <strong>Step 4 — Open in Cursor, start with Plan Mode</strong>
+          <br />
+          Open the folder in Cursor. In the Claude Code panel, type:
+          <br />
+          <span className="cmd">
+            /plan — read all memory-bank files and PRD.md, then ask me
+            clarifying questions before we begin Phase 1
+          </span>
+          <br />
+          <br />
+          Claude will read the full context, ask 4–6 questions, then present a
+          plan for your approval before writing a single line of code.
         </div>
         <div className="instruction-box">
-          <strong>Step 5 — Approve plan → Claude builds</strong><br />
-          After approving the plan, Claude will execute phase by phase, updating <span className="cmd">activeContext.md</span> and <span className="cmd">progress.md</span> after each step.
+          <strong>Step 5 — Approve plan → Claude builds</strong>
+          <br />
+          After approving the plan, Claude will execute phase by phase, updating{" "}
+          <span className="cmd">activeContext.md</span> and{" "}
+          <span className="cmd">progress.md</span> after each step.
         </div>
 
         <div className="download-all-card">
           <h3>📦 Download All Files</h3>
-          <p>Get all generated files in one ZIP. Unzip into your project folder to add PRD, plan, and memory-bank files.</p>
-          <button className="btn btn-success" onClick={downloadAll}>⬇ Download Project Bundle</button>
+          <p>
+            Get all generated files in one ZIP. Unzip into your project folder
+            to add PRD, plan, and memory-bank files.
+          </p>
+          <button className="btn btn-success" onClick={downloadAll}>
+            ⬇ Download Project Bundle
+          </button>
         </div>
 
         <div className="btn-row" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" onClick={() => goToStep(5)}>← Back to Plan</button>
-          <button className="btn btn-secondary" onClick={startOver}>↺ Start New Project</button>
+          <button className="btn btn-secondary" onClick={() => goToStep(5)}>
+            ← Back to Plan
+          </button>
+          <button className="btn btn-secondary" onClick={startOver}>
+            ↺ Start New Project
+          </button>
         </div>
       </div>
     </div>

@@ -45,15 +45,21 @@ export function setStoredApiKey(key: string | null): void {
 
 export function callClaude(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const run = async () => {
       lastCall = Date.now();
       const apiKey = getStoredApiKey();
-      const headers: Record<string, string> = { "Content-Type": "application/json" };
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
       if (apiKey) headers["X-Anthropic-API-Key"] = apiKey;
-      const body: { systemPrompt: string; userPrompt: string; apiKey?: string } = {
+      const body: {
+        systemPrompt: string;
+        userPrompt: string;
+        apiKey?: string;
+      } = {
         systemPrompt,
         userPrompt,
       };
@@ -86,12 +92,19 @@ export function callClaude(
 export async function callClaudeStream(
   systemPrompt: string,
   userPrompt: string,
-  onChunk: (chunk: string) => void
+  onChunk: (chunk: string) => void,
 ): Promise<string> {
   const apiKey = getStoredApiKey();
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (apiKey) headers["X-Anthropic-API-Key"] = apiKey;
-  const body: { systemPrompt: string; userPrompt: string; apiKey?: string; stream?: boolean } = {
+  const body: {
+    systemPrompt: string;
+    userPrompt: string;
+    apiKey?: string;
+    stream?: boolean;
+  } = {
     systemPrompt,
     userPrompt,
     stream: true,
@@ -128,7 +141,11 @@ export async function callClaudeStream(
           type?: string;
           delta?: { type?: string; text?: string };
         };
-        if (data.type === "content_block_delta" && data.delta?.type === "text_delta" && data.delta.text) {
+        if (
+          data.type === "content_block_delta" &&
+          data.delta?.type === "text_delta" &&
+          data.delta.text
+        ) {
           fullText += data.delta.text;
           onChunk(data.delta.text);
         }

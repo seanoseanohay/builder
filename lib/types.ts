@@ -70,6 +70,8 @@ export interface BriefState {
   companyProfile?: string;
   partnerResearch?: PartnerResearch;
   discoveredSections?: ResearchSection[];
+  /** Confirmed layers for research (after Proposing step); when set, Research step uses this instead of core + discovered */
+  proposedLayers?: ResearchSection[];
 }
 
 export interface PlanState {

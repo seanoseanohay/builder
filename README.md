@@ -1,12 +1,13 @@
 # Project Kickstarter
 
-A 5-step wizard that turns a project brief into Cursor-ready docs using Claude: **Brief → Research → PRD → Execution Plan → Drop-in files**.
+A 6-step wizard that turns a project brief into Cursor-ready docs using Claude: **Brief → Proposing layers → Research → PRD → Plan → Export**.
 
 - **Step 1 — Brief**: Intake form (company, project name, problem statement, functional requirements, stack). Optional “Preview Inferred Details”; then “Run Research & Continue”.
-- **Step 2 — Research**: System Design Review: 8 sections (Frontend, Backend, Database, Hosting, LLM, Caching, Auth, Competitive). Claude recommends options per section; you can chat, pick an option, and “Lock Decision” to generate a Decision Record.
-- **Step 3 — PRD**: Full Product Requirements Document from the brief and locked decisions.
-- **Step 4 — Plan**: Phased execution plan (PLAN.md) plus 6 memory-bank files (projectbrief, productContext, systemPatterns, techContext, activeContext, progress).
-- **Step 5 — Export**: Setup instructions and “Download All Files” (each file downloads separately).
+- **Step 2 — Proposing layers**: Review recommended layers and _why_ each is needed. Remove layers you don’t need, add any that are missing, then “Continue to Research”.
+- **Step 3 — Research**: System Design Review: Claude recommends options per layer. Pick an option, use “E: None of the above” to enter your own (Claude rewrites it), chat, and “Lock Decision”. You can add more layers here too.
+- **Step 4 — PRD**: Full Product Requirements Document from the brief and locked decisions.
+- **Step 5 — Plan**: Phased execution plan (PLAN.md) plus 6 memory-bank files (projectbrief, productContext, systemPatterns, techContext, activeContext, progress).
+- **Step 6 — Export**: Setup instructions and “Download All Files” (each file downloads separately).
 
 Session is persisted in the browser (localStorage) so you can resume later.
 

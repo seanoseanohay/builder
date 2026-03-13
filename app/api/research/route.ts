@@ -6,7 +6,12 @@ import {
   parseSearchResults,
   stripHtml,
 } from "@/lib/research";
-import type { Intake, Inferred, PartnerResearch, ResearchSection } from "@/lib/types";
+import type {
+  Intake,
+  Inferred,
+  PartnerResearch,
+  ResearchSection,
+} from "@/lib/types";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
 const MODEL = "claude-sonnet-4-20250514";
@@ -18,7 +23,11 @@ interface ResearchResponse {
   discoveredSections: ResearchSection[];
 }
 
-async function callClaudeJson(apiKey: string, system: string, user: string): Promise<string> {
+async function callClaudeJson(
+  apiKey: string,
+  system: string,
+  user: string,
+): Promise<string> {
   const response = await fetch(ANTHROPIC_API_URL, {
     method: "POST",
     headers: {
@@ -36,7 +45,9 @@ async function callClaudeJson(apiKey: string, system: string, user: string): Pro
 
   if (!response.ok) {
     const errText = await response.text();
-    const error = new Error(`Anthropic API error: ${response.status} — ${errText}`) as Error & {
+    const error = new Error(
+      `Anthropic API error: ${response.status} — ${errText}`,
+    ) as Error & {
       status?: number;
     };
     error.status = response.status;
@@ -55,7 +66,9 @@ async function callClaudeJson(apiKey: string, system: string, user: string): Pro
   );
 }
 
-async function fetchPageText(url: string): Promise<{ url: string; text: string } | null> {
+async function fetchPageText(
+  url: string,
+): Promise<{ url: string; text: string } | null> {
   try {
     const response = await fetch(url, {
       headers: {
@@ -77,11 +90,14 @@ async function fetchPageText(url: string): Promise<{ url: string; text: string }
 
 async function fetchSearchFallback(query: string) {
   try {
-    const response = await fetch(`https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`, {
-      headers: {
-        "User-Agent": "Mozilla/5.0 ProjectKickstarterResearchBot/1.0",
+    const response = await fetch(
+      `https://html.duckduckgo.com/html/?q=${encodeURIComponent(query)}`,
+      {
+        headers: {
+          "User-Agent": "Mozilla/5.0 ProjectKickstarterResearchBot/1.0",
+        },
       },
-    });
+    );
     if (!response.ok) return [];
     const html = await response.text();
     return parseSearchResults(html).slice(0, 5);
@@ -100,34 +116,45 @@ export async function POST(request: NextRequest) {
   }
 
   const intake = body.intake;
-  const requestKey = request.headers.get("x-anthropic-api-key")?.trim() || body.apiKey?.trim();
+  const requestKey =
+    request.headers.get("x-anthropic-api-key")?.trim() || body.apiKey?.trim();
   const apiKey = requestKey || process.env.ANTHROPIC_API_KEY;
 
   if (!intake?.company || !intake.problemStatement) {
     return NextResponse.json(
       { error: "intake.company and intake.problemStatement are required" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!apiKey) {
     return NextResponse.json(
-      { error: "No API key. Add your Anthropic API key in the app or configure ANTHROPIC_API_KEY." },
-      { status: 401 }
+      {
+        error:
+          "No API key. Add your Anthropic API key in the app or configure ANTHROPIC_API_KEY.",
+      },
+      { status: 401 },
     );
   }
 
   try {
     const websiteDocs = intake.website
       ? (
-          await Promise.all(buildWebsiteTargets(intake.website).map((url) => fetchPageText(url)))
+          await Promise.all(
+            buildWebsiteTargets(intake.website).map((url) =>
+              fetchPageText(url),
+            ),
+          )
         ).filter((doc): doc is { url: string; text: string } => Boolean(doc))
       : [];
 
     const needsSearchFallback =
-      websiteDocs.length < 2 || websiteDocs.reduce((sum, doc) => sum + doc.text.length, 0) < 2500;
+      websiteDocs.length < 2 ||
+      websiteDocs.reduce((sum, doc) => sum + doc.text.length, 0) < 2500;
     const searchResults = needsSearchFallback
-      ? await fetchSearchFallback(`${intake.company} ${intake.projectName} ${intake.problemStatement}`)
+      ? await fetchSearchFallback(
+          `${intake.company} ${intake.projectName} ${intake.problemStatement}`,
+        )
       : [];
 
     const websiteContext = websiteDocs
@@ -136,7 +163,7 @@ export async function POST(request: NextRequest) {
     const searchContext = searchResults
       .map(
         (result, index) =>
-          `SEARCH RESULT ${index + 1}: ${result.title}\nURL: ${result.url}\nSNIPPET: ${result.snippet}`
+          `SEARCH RESULT ${index + 1}: ${result.title}\nURL: ${result.url}\nSNIPPET: ${result.snippet}`,
       )
       .join("\n\n");
 
@@ -206,17 +233,30 @@ Rules:
 `.trim();
 
     const raw = await callClaudeJson(apiKey, systemPrompt, userPrompt);
-    const parsed = safeParseJSON<ResearchResponse>(raw.replace(/```json|```/gi, "").trim());
+    const parsed = safeParseJSON<ResearchResponse>(
+      raw.replace(/```json|```/gi, "").trim(),
+    );
     const actualSources = [
-      ...websiteDocs.map((doc) => ({ type: "website" as const, label: doc.url, url: doc.url })),
-      ...searchResults.map((result) => ({ type: "search" as const, label: result.title, url: result.url })),
+      ...websiteDocs.map((doc) => ({
+        type: "website" as const,
+        label: doc.url,
+        url: doc.url,
+      })),
+      ...searchResults.map((result) => ({
+        type: "search" as const,
+        label: result.title,
+        url: result.url,
+      })),
     ];
 
     return NextResponse.json(normalizeResearchResult(parsed, actualSources));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     const status =
-      typeof error === "object" && error && "status" in error && typeof error.status === "number"
+      typeof error === "object" &&
+      error &&
+      "status" in error &&
+      typeof error.status === "number"
         ? error.status
         : 500;
     return NextResponse.json({ error: message }, { status });

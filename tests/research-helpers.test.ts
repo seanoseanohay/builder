@@ -63,7 +63,9 @@ describe("mergeResearchSections", () => {
     ]);
 
     expect(merged.some((section) => section.id === "frontend")).toBe(true);
-    expect(merged.filter((section) => section.id === "frontend")).toHaveLength(1);
+    expect(merged.filter((section) => section.id === "frontend")).toHaveLength(
+      1,
+    );
     expect(merged.some((section) => section.id === "notifications")).toBe(true);
   });
 });
@@ -137,9 +139,11 @@ describe("normalizeResearchResult", () => {
         inferred: {
           domain: "Finance",
         },
-        discoveredSections: [{ label: "Payments", reason: "Needed for billing." }],
+        discoveredSections: [
+          { label: "Payments", reason: "Needed for billing." },
+        ],
       },
-      [{ type: "website", label: "Company website", url: "https://acme.com" }]
+      [{ type: "website", label: "Company website", url: "https://acme.com" }],
     );
 
     expect(result.partnerResearch.sources).toEqual([
@@ -163,7 +167,7 @@ describe("normalizeResearchResult", () => {
         inferred: {},
         discoveredSections: [],
       },
-      []
+      [],
     );
 
     expect(result.partnerResearch.sources).toEqual([
@@ -186,8 +190,8 @@ describe("getResearchGrounding", () => {
           domain: "Software",
           targetUsers: ["admins"],
           constraints: ["none"],
-        }
-      )
+        },
+      ),
     ).toEqual({
       domain: "FinTech",
       targetUsers: ["finance ops managers"],
