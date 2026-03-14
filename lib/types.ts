@@ -64,6 +64,12 @@ export interface SDSStateSection {
   chatHistory: Array<{ role: string; content: string }>;
 }
 
+export interface UserRequirement {
+  id: string;
+  requirement: string;
+  explanation?: string;
+}
+
 export interface BriefState {
   intake?: Intake;
   inferred?: Inferred;
@@ -72,6 +78,10 @@ export interface BriefState {
   discoveredSections?: ResearchSection[];
   /** Confirmed layers for research (after Proposing step); when set, Research step uses this instead of core + discovered */
   proposedLayers?: ResearchSection[];
+  /** Line-by-line requirements breakdown from Understanding step (generated) */
+  requirementsBreakdown?: string;
+  /** User-added requirements from Understanding step */
+  userRequirements?: UserRequirement[];
 }
 
 export interface PlanState {

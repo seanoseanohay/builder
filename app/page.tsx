@@ -11,6 +11,7 @@ import {
 import { safeParseJSON } from "@/lib/json";
 import {
   buildInitialSdsState,
+  buildPreSearchMarkdown,
   CORE_RESEARCH_SECTIONS,
   getResearchGrounding,
   mergeResearchSections,
@@ -29,6 +30,7 @@ import type {
   SDSData,
   SDSStateSection,
   SavedSession,
+  UserRequirement,
 } from "@/lib/types";
 
 const initialIntake: Intake = {
@@ -87,7 +89,7 @@ export default function Home() {
   const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
   const [currentStep, setCurrentStep] = useState(1);
   const [openCards, setOpenCards] = useState<Set<string>>(
-    new Set(["prd-full", "ep-plan"]),
+    new Set(["research-doc", "prd-full", "ep-plan"]),
   );
   const [showRestoreBanner, setShowRestoreBanner] = useState(false);
   const [restoreInfo, setRestoreInfo] = useState("");
@@ -104,6 +106,8 @@ export default function Home() {
   const [planStreamingText, setPlanStreamingText] = useState("");
   const [inferLoading, setInferLoading] = useState(false);
   const [inferredVisible, setInferredVisible] = useState(false);
+  const [requirementsBreakdownLoading, setRequirementsBreakdownLoading] =
+    useState(false);
   const [apiKeyValue, setApiKeyValue] = useState("");
   const [showApiKeyPanel, setShowApiKeyPanel] = useState(false);
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
@@ -229,8 +233,8 @@ export default function Home() {
     setResearchOutputVisible(
       (saved.snap && Object.keys(saved.snap).length > 0) || false,
     );
-    setPrdOutputVisible(!!(saved.state.prd && saved.currentStep >= 4));
-    setPlanOutputVisible(!!(saved.state.plan?.plan && saved.currentStep >= 5));
+    setPrdOutputVisible(!!(saved.state.prd && saved.currentStep >= 5));
+    setPlanOutputVisible(!!(saved.state.plan?.plan && saved.currentStep >= 6));
     savedSessionRef.current = null;
   }, []);
 
@@ -548,14 +552,60 @@ Rules:
     setResearchLoading(false);
   }, [intake, goToStep, apiKeyValue]);
 
+  const fetchRequirementsBreakdown = useCallback(async () => {
+    const apiKey = getStoredApiKeyIfSet();
+    if (!apiKey && !apiKeyValue?.trim()) return;
+    setRequirementsBreakdownLoading(true);
+    try {
+      const response = await fetch("/api/requirements-breakdown", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(apiKey ? { "X-Anthropic-API-Key": apiKey } : {}),
+        },
+        body: JSON.stringify({
+          intake: brief.intake || intake,
+          companyProfile: brief.partnerResearch?.summary || brief.companyProfile,
+          partnerResearch: brief.partnerResearch,
+          inferred: brief.inferred,
+          apiKey: apiKey || apiKeyValue || undefined,
+        }),
+      });
+      const data = (await response.json()) as { error?: string; markdown?: string };
+      if (!response.ok) throw new Error(data.error || "Failed to generate requirements");
+      if (data.markdown) {
+        setBrief((b) => ({ ...b, requirementsBreakdown: data.markdown }));
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setRequirementsBreakdownLoading(false);
+  }, [brief.intake, brief.partnerResearch, brief.companyProfile, brief.inferred, intake, apiKeyValue]);
+
+  useEffect(() => {
+    if (
+      currentStep === 2 &&
+      brief.partnerResearch &&
+      !brief.requirementsBreakdown &&
+      !requirementsBreakdownLoading
+    ) {
+      fetchRequirementsBreakdown();
+    }
+  }, [currentStep, brief.partnerResearch, brief.requirementsBreakdown, requirementsBreakdownLoading, fetchRequirementsBreakdown]);
+
+  const continueToProposingLayers = useCallback(() => {
+    setCompletedSteps((s) => new Set([...Array.from(s), 2]));
+    goToStep(3);
+  }, [goToStep]);
+
   const continueToResearch = useCallback(() => {
     const layers =
       brief.proposedLayers && brief.proposedLayers.length > 0
         ? brief.proposedLayers
         : mergedFromBrief;
     setResearchOutputVisible(true);
-    setCompletedSteps((s) => new Set([...Array.from(s), 2]));
-    goToStep(3);
+    setCompletedSteps((s) => new Set([...Array.from(s), 3]));
+    goToStep(4);
     setSdsState((prev) => {
       const next = { ...buildInitialSdsState(layers) };
       Object.entries(prev).forEach(([id, value]) => {
@@ -581,6 +631,33 @@ Rules:
     goToStep,
     analyzeSection,
   ]);
+
+  const addUserRequirement = useCallback(() => {
+    const id = `req-${Date.now()}`;
+    setBrief((b) => ({
+      ...b,
+      userRequirements: [...(b.userRequirements || []), { id, requirement: "", explanation: "" }],
+    }));
+  }, []);
+
+  const updateUserRequirement = useCallback(
+    (id: string, field: "requirement" | "explanation", value: string) => {
+      setBrief((b) => ({
+        ...b,
+        userRequirements: (b.userRequirements || []).map((r) =>
+          r.id === id ? { ...r, [field]: value } : r,
+        ),
+      }));
+    },
+    [],
+  );
+
+  const removeUserRequirement = useCallback((id: string) => {
+    setBrief((b) => ({
+      ...b,
+      userRequirements: (b.userRequirements || []).filter((r) => r.id !== id),
+    }));
+  }, []);
 
   const selectOption = useCallback(
     (secId: string, index: number, name: string) => {
@@ -782,8 +859,8 @@ Rules:
   const totalSections = researchSections.length;
 
   const runPRD = useCallback(async () => {
-    setCompletedSteps((s) => new Set([...Array.from(s), 3]));
-    goToStep(4);
+    setCompletedSteps((s) => new Set([...Array.from(s), 4]));
+    goToStep(5);
     setPrdLoading(true);
     setPrdOutputVisible(false);
 
@@ -879,6 +956,11 @@ ADDITIONAL NOTES: ${intakeData?.additionalNotes || "none"}
 TARGET USERS: ${(grounding.targetUsers || []).join(", ") || "TBD"}
 DOMAIN: ${grounding.domain || "TBD"}
 
+${(brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0) ? `## REFINED REQUIREMENTS (from Understanding step):
+${brief.requirementsBreakdown || ""}
+${(brief.userRequirements?.length ?? 0) > 0 ? "\n### Additional requirements from you\n" + (brief.userRequirements ?? []).map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""}).join("\n") : ""}
+` : ""}
+
 ## LOCKED SYSTEM DESIGN DECISIONS:
 ${decisionRecords}
 
@@ -925,8 +1007,8 @@ Format as clean markdown with proper headers.`;
   ]);
 
   const runExecutionPlan = useCallback(async () => {
-    setCompletedSteps((s) => new Set([...Array.from(s), 4]));
-    goToStep(5);
+    setCompletedSteps((s) => new Set([...Array.from(s), 5]));
+    goToStep(6);
     setPlanLoading(true);
     setPlanOutputVisible(true);
     setPlanStreamingText("");
@@ -958,6 +1040,8 @@ Discovered Layers: ${researchSections.map((sec) => `${sec.label} (${sec.priority
 
 LOCKED STACK DECISIONS:
 ${decisions2 || "See PRD for details"}
+
+${(brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0) ? `REFINED REQUIREMENTS:\n${brief.requirementsBreakdown || ""}\n${(brief.userRequirements?.length ?? 0) > 0 ? (brief.userRequirements ?? []).map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""}).join("\n") : ""}\n` : ""}
 
 PRD Summary: ${prd.substring(0, 600)}...
 `.trim();
@@ -1044,7 +1128,22 @@ PRD Summary: ${prd.substring(0, 600)}...
   ]);
 
   const downloadAll = useCallback(async () => {
+    const preSearchDoc = buildPreSearchMarkdown(brief);
+    const refinedReqs =
+      (brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0)
+        ? [
+            brief.requirementsBreakdown || "",
+            (brief.userRequirements?.length ?? 0) > 0
+              ? "\n## Additional requirements (from you)\n\n" +
+                (brief.userRequirements ?? [])
+                  .map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""})
+                  .join("\n")
+              : "",
+          ].join("")
+        : "";
     const files: [string, string][] = [
+      ...(preSearchDoc ? [["RESEARCH.md", preSearchDoc] as [string, string]] : []),
+      ...(refinedReqs ? [["REQUIREMENTS.md", refinedReqs] as [string, string]] : []),
       ["PRD.md", prd],
       ["PLAN.md", plan.plan || ""],
       ["memory-bank/projectbrief.md", plan.projectbrief || ""],
@@ -1065,7 +1164,7 @@ PRD Summary: ${prd.substring(0, 600)}...
     a.download = "ProjectBundle.zip";
     a.click();
     URL.revokeObjectURL(url);
-  }, [prd, plan]);
+  }, [brief, prd, plan]);
 
   const startOver = useCallback(() => {
     if (!confirm("Start a new project? This will clear all generated content."))
@@ -1082,7 +1181,7 @@ PRD Summary: ${prd.substring(0, 600)}...
     setPrdOutputVisible(false);
     setPlanOutputVisible(false);
     setPlanStreamingText("");
-    setOpenCards(new Set(["prd-full", "ep-plan"]));
+    setOpenCards(new Set(["research-doc", "prd-full", "ep-plan"]));
     deleteSession();
     goToStep(1);
   }, [goToStep]);
@@ -1257,7 +1356,7 @@ PRD Summary: ${prd.substring(0, 600)}...
       </header>
 
       <div className="steps-bar">
-        {[1, 2, 3, 4, 5, 6].map((n) => (
+        {[1, 2, 3, 4, 5, 6, 7].map((n) => (
           <div
             key={n}
             className={`step-indicator ${currentStep === n ? "active" : ""} ${completedSteps.has(n) ? "done" : ""}`}
@@ -1265,11 +1364,12 @@ PRD Summary: ${prd.substring(0, 600)}...
           >
             <span className="step-num">{String(n).padStart(2, "0")}</span>
             {n === 1 && "Brief"}
-            {n === 2 && "Proposing layers"}
-            {n === 3 && "Research"}
-            {n === 4 && "PRD"}
-            {n === 5 && "Plan"}
-            {n === 6 && "Export"}
+            {n === 2 && "Understanding & requirements"}
+            {n === 3 && "Proposing layers"}
+            {n === 4 && "Research"}
+            {n === 5 && "PRD"}
+            {n === 6 && "Plan"}
+            {n === 7 && "Export"}
           </div>
         ))}
       </div>
@@ -1299,7 +1399,7 @@ PRD Summary: ${prd.substring(0, 600)}...
             />
           </div>
           <div className="field-group" style={{ margin: 0 }}>
-            <label>Website</label>
+            <label>Website (optional)</label>
             <input
               type="text"
               value={intake.website}
@@ -1478,10 +1578,209 @@ PRD Summary: ${prd.substring(0, 600)}...
         </div>
       </div>
 
-      {/* Panel 2: Proposing layers */}
+      {/* Panel 2: Understanding & requirements */}
       <div
         className={`panel ${currentStep === 2 ? "active" : ""}`}
         id="panel-2"
+      >
+        <div className="section-title">Understanding & requirements</div>
+        <p className="section-desc">
+          What we found about the company and how we&apos;ve translated your
+          brief into product requirements. Add or edit requirements below, then
+          continue to proposing layers.
+        </p>
+
+        {currentStep === 2 && brief.partnerResearch && (
+          <>
+            <div className="output-card" style={{ marginBottom: 16 }}>
+              <div className="output-card-header">
+                <div className="card-title">
+                  🏢 What we found about the company
+                </div>
+              </div>
+              <div className="output-card-body open">
+                <div className="output-content">
+                  {brief.partnerResearch.summary}
+                </div>
+                <div
+                  style={{
+                    marginTop: 12,
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  {brief.partnerResearch.domain && (
+                    <span className="inferred-tag">
+                      {brief.partnerResearch.domain}
+                    </span>
+                  )}
+                  {(brief.partnerResearch.targetUsers || []).map((u) => (
+                    <span key={u} className="inferred-tag">
+                      {u}
+                    </span>
+                  ))}
+                  {(brief.partnerResearch.constraints || []).map((c) => (
+                    <span key={c} className="inferred-tag">
+                      {c}
+                    </span>
+                  ))}
+                </div>
+                {brief.inferred && (
+                  <div style={{ marginTop: 12, fontSize: 13, color: "var(--muted)" }}>
+                    Inferred: {brief.inferred.projectType ?? "—"}
+                    {(brief.inferred.stack?.length ?? 0) > 0 &&
+                      ` · ${brief.inferred.stack!.slice(0, 3).join(", ")}`}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {requirementsBreakdownLoading && (
+              <div className="loading-block active" style={{ marginBottom: 16 }}>
+                <div className="spinner" />
+                <div className="loading-text">
+                  <span className="status-dot" /> Breaking down requirements…
+                </div>
+              </div>
+            )}
+
+            {!requirementsBreakdownLoading && brief.requirementsBreakdown && (
+              <div className="output-card" style={{ marginBottom: 16 }}>
+                <div className="output-card-header">
+                  <div className="card-title">
+                    📋 Requirements breakdown (line by line)
+                  </div>
+                </div>
+                <div className="output-card-body open">
+                  <div className="output-content">
+                    {brief.requirementsBreakdown}
+                  </div>
+                  <div style={{ marginTop: 10, display: "flex", gap: 8 }}>
+                    <button
+                      className="copy-btn"
+                      onClick={() =>
+                        copyContent(brief.requirementsBreakdown ?? "", "btn-copy-breakdown")
+                      }
+                    >
+                      Copy
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: 12 }}
+                      onClick={() => fetchRequirementsBreakdown()}
+                      disabled={requirementsBreakdownLoading}
+                    >
+                      Regenerate breakdown
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="output-card" style={{ marginBottom: 16 }}>
+              <div className="output-card-header">
+                <div className="card-title">
+                  ✏️ Your additional requirements
+                </div>
+              </div>
+              <div className="output-card-body open">
+                <p style={{ fontSize: 13, color: "var(--muted)", marginBottom: 12 }}>
+                  Add requirements based on this translation. Each can have an
+                  optional explanation.
+                </p>
+                {(brief.userRequirements || []).map((r) => (
+                  <div
+                    key={r.id}
+                    style={{
+                      marginBottom: 12,
+                      padding: 12,
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      borderRadius: 8,
+                    }}
+                  >
+                    <input
+                      type="text"
+                      value={r.requirement}
+                      onChange={(e) =>
+                        updateUserRequirement(r.id, "requirement", e.target.value)
+                      }
+                      placeholder="Requirement"
+                      style={{
+                        width: "100%",
+                        marginBottom: 8,
+                        padding: "8px 10px",
+                        borderRadius: 6,
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "var(--input-bg)",
+                        color: "var(--text)",
+                      }}
+                    />
+                    <input
+                      type="text"
+                      value={r.explanation ?? ""}
+                      onChange={(e) =>
+                        updateUserRequirement(r.id, "explanation", e.target.value)
+                      }
+                      placeholder="Explanation (optional)"
+                      style={{
+                        width: "100%",
+                        marginBottom: 8,
+                        padding: "8px 10px",
+                        borderRadius: 6,
+                        border: "1px solid rgba(255,255,255,0.2)",
+                        background: "var(--input-bg)",
+                        color: "var(--text)",
+                        fontSize: 13,
+                      }}
+                    />
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      style={{ fontSize: 12 }}
+                      onClick={() => removeUserRequirement(r.id)}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={addUserRequirement}
+                >
+                  + Add requirement
+                </button>
+              </div>
+            </div>
+
+            <div className="btn-row">
+              <button
+                className="btn btn-primary"
+                onClick={continueToProposingLayers}
+              >
+                → Continue to Proposing layers
+              </button>
+              <button className="btn btn-secondary" onClick={() => goToStep(1)}>
+                ← Back to Brief
+              </button>
+            </div>
+          </>
+        )}
+
+        {currentStep === 2 && !brief.partnerResearch && (
+          <p style={{ color: "var(--muted)" }}>
+            Run Research from the Brief step first to see company findings and
+            requirements breakdown here.
+          </p>
+        )}
+      </div>
+
+      {/* Panel 3: Proposing layers */}
+      <div
+        className={`panel ${currentStep === 3 ? "active" : ""}`}
+        id="panel-3"
       >
         <div className="section-title">Proposing layers</div>
         <p className="section-desc">
@@ -1490,7 +1789,7 @@ PRD Summary: ${prd.substring(0, 600)}...
           options for each layer.
         </p>
 
-        {currentStep === 2 && researchLoading && (
+        {currentStep === 3 && researchLoading && (
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
@@ -1500,13 +1799,13 @@ PRD Summary: ${prd.substring(0, 600)}...
           </div>
         )}
 
-        {currentStep === 2 && !researchLoading && researchError && (
+        {currentStep === 3 && !researchLoading && researchError && (
           <div className="alert alert-warning" style={{ marginTop: 12 }}>
             {researchError}
           </div>
         )}
 
-        {currentStep === 2 &&
+        {currentStep === 3 &&
           !researchLoading &&
           !researchError &&
           (brief.proposedLayers?.length ?? 0) > 0 && (
@@ -1642,21 +1941,22 @@ PRD Summary: ${prd.substring(0, 600)}...
             </div>
           )}
 
-        {currentStep === 2 &&
+        {currentStep === 3 &&
           !researchLoading &&
           !researchError &&
           (!brief.proposedLayers || brief.proposedLayers.length === 0) && (
             <p className="section-desc">
-              Run &quot;Run Research &amp; Continue&quot; from the Brief step to
-              get recommended layers, then return here to review and edit them.
+              Complete &quot;Understanding &amp; requirements&quot; first, or run
+              &quot;Run Research &amp; Continue&quot; from the Brief step to get
+              recommended layers, then return here to review and edit them.
             </p>
           )}
       </div>
 
-      {/* Panel 3: Research */}
+      {/* Panel 4: Research */}
       <div
-        className={`panel ${currentStep === 3 ? "active" : ""}`}
-        id="panel-3"
+        className={`panel ${currentStep === 4 ? "active" : ""}`}
+        id="panel-4"
       >
         <div className="section-title">System Design Review</div>
         <p className="section-desc">
@@ -2110,10 +2410,10 @@ PRD Summary: ${prd.substring(0, 600)}...
         )}
       </div>
 
-      {/* Panel 4: PRD */}
+      {/* Panel 5: PRD */}
       <div
-        className={`panel ${currentStep === 4 ? "active" : ""}`}
-        id="panel-4"
+        className={`panel ${currentStep === 5 ? "active" : ""}`}
+        id="panel-5"
       >
         <div className="section-title">Product Requirements Document</div>
         <p className="section-desc">
@@ -2133,6 +2433,41 @@ PRD Summary: ${prd.substring(0, 600)}...
 
         {prdOutputVisible && !prdLoading && (
           <div>
+            {buildPreSearchMarkdown(brief) && (
+              <div className="output-card" style={{ marginBottom: 16 }}>
+                <div
+                  className="output-card-header"
+                  onClick={() => toggleCard("research-doc")}
+                >
+                  <div className="card-title">
+                    🔍 Pre-search / Research context{" "}
+                    <span className="card-badge green">RESEARCH.md</span>
+                  </div>
+                  <span
+                    className={`chevron ${openCards.has("research-doc") ? "open" : ""}`}
+                  >
+                    ▼
+                  </span>
+                </div>
+                <div
+                  className={`output-card-body ${openCards.has("research-doc") ? "open" : ""}`}
+                >
+                  <div className="output-content">
+                    {buildPreSearchMarkdown(brief)}
+                  </div>
+                  <div style={{ marginTop: 10 }}>
+                    <button
+                      className="copy-btn"
+                      onClick={() =>
+                        copyContent(buildPreSearchMarkdown(brief), "btn-copy-research")
+                      }
+                    >
+                      Copy
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="output-card">
               <div
                 className="output-card-header"
@@ -2168,7 +2503,7 @@ PRD Summary: ${prd.substring(0, 600)}...
               <button className="btn btn-primary" onClick={runExecutionPlan}>
                 → Generate Execution Plan
               </button>
-              <button className="btn btn-secondary" onClick={() => goToStep(3)}>
+              <button className="btn btn-secondary" onClick={() => goToStep(4)}>
                 ← Back to Research
               </button>
             </div>
@@ -2176,10 +2511,10 @@ PRD Summary: ${prd.substring(0, 600)}...
         )}
       </div>
 
-      {/* Panel 4: Plan */}
+      {/* Panel 6: Plan */}
       <div
-        className={`panel ${currentStep === 5 ? "active" : ""}`}
-        id="panel-5"
+        className={`panel ${currentStep === 6 ? "active" : ""}`}
+        id="panel-6"
       >
         <div className="section-title">Execution Plan + Memory Bank</div>
         <p className="section-desc">
@@ -2200,6 +2535,17 @@ PRD Summary: ${prd.substring(0, 600)}...
         {planOutputVisible && (
           <div>
             {[
+              ...(buildPreSearchMarkdown(brief)
+                ? [
+                    {
+                      id: "research-doc",
+                      title: "🔍 Pre-search / Research context",
+                      badge: "RESEARCH.md",
+                      badgeGreen: true,
+                      content: buildPreSearchMarkdown(brief),
+                    },
+                  ]
+                : []),
               {
                 id: "ep-plan",
                 title: "🗺️ Execution Plan",
@@ -2280,10 +2626,10 @@ PRD Summary: ${prd.substring(0, 600)}...
               </div>
             ))}
             <div className="btn-row">
-              <button className="btn btn-success" onClick={() => goToStep(6)}>
+              <button className="btn btn-success" onClick={() => goToStep(7)}>
                 → Get Setup Instructions
               </button>
-              <button className="btn btn-secondary" onClick={() => goToStep(4)}>
+              <button className="btn btn-secondary" onClick={() => goToStep(5)}>
                 ← Back to PRD
               </button>
             </div>
@@ -2291,10 +2637,10 @@ PRD Summary: ${prd.substring(0, 600)}...
         )}
       </div>
 
-      {/* Panel 6: Export */}
+      {/* Panel 7: Export */}
       <div
-        className={`panel ${currentStep === 6 ? "active" : ""}`}
-        id="panel-6"
+        className={`panel ${currentStep === 7 ? "active" : ""}`}
+        id="panel-7"
       >
         <div className="section-title">Drop into Cursor / Claude Code</div>
         <p className="section-desc">
@@ -2335,6 +2681,12 @@ PRD Summary: ${prd.substring(0, 600)}...
             ruleset)
           </div>
           <div style={{ paddingLeft: 20 }}>
+            <span className="file new">✦ RESEARCH.md</span> (pre-search context)
+          </div>
+          <div style={{ paddingLeft: 20 }}>
+            <span className="file new">✦ REQUIREMENTS.md</span> (if generated)
+          </div>
+          <div style={{ paddingLeft: 20 }}>
             <span className="file new">✦ PRD.md</span>
           </div>
           <div style={{ paddingLeft: 20 }}>
@@ -2350,8 +2702,10 @@ PRD Summary: ${prd.substring(0, 600)}...
           <br />
           Create a new folder. Inside it, create a{" "}
           <span className="cmd">memory-bank/</span> folder and paste each of the
-          6 memory-bank files in (copy them from Step 04). Also paste{" "}
-          <span className="cmd">PRD.md</span> and{" "}
+          6 memory-bank files in (copy them from Step 06). Also paste{" "}
+          <span className="cmd">RESEARCH.md</span>,{" "}
+          <span className="cmd">REQUIREMENTS.md</span> (if present),{" "}
+          <span className="cmd">PRD.md</span>, and{" "}
           <span className="cmd">PLAN.md</span> into the root.
         </div>
         <div className="instruction-box">
@@ -2394,7 +2748,7 @@ PRD Summary: ${prd.substring(0, 600)}...
           <h3>📦 Download All Files</h3>
           <p>
             Get all generated files in one ZIP. Unzip into your project folder
-            to add PRD, plan, and memory-bank files.
+            to add RESEARCH, REQUIREMENTS, PRD, plan, and memory-bank files.
           </p>
           <button className="btn btn-success" onClick={downloadAll}>
             ⬇ Download Project Bundle
@@ -2402,7 +2756,7 @@ PRD Summary: ${prd.substring(0, 600)}...
         </div>
 
         <div className="btn-row" style={{ marginTop: 16 }}>
-          <button className="btn btn-secondary" onClick={() => goToStep(5)}>
+          <button className="btn btn-secondary" onClick={() => goToStep(6)}>
             ← Back to Plan
           </button>
           <button className="btn btn-secondary" onClick={startOver}>

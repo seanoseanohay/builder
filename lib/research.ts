@@ -1,4 +1,5 @@
 import type {
+  BriefState,
   Inferred,
   PartnerResearch,
   PartnerResearchSource,
@@ -228,6 +229,86 @@ export function getResearchGrounding(
     targetUsers: partnerResearch?.targetUsers || inferred?.targetUsers || [],
     constraints: partnerResearch?.constraints || inferred?.constraints || [],
   };
+}
+
+/**
+ * Build the pre-search / research context document as markdown.
+ * This captures partner research, inferred context, and discovered layers
+ * so it can be exported with the PRD and execution plan.
+ */
+export function buildPreSearchMarkdown(brief: BriefState): string {
+  const parts: string[] = [];
+  parts.push("# Pre-search / Research Context");
+  parts.push("");
+  parts.push(
+    "This document captures the research output from the initial pass (company context, inferred project details, and discovered architecture layers) before system design decisions were locked.",
+  );
+  parts.push("");
+
+  const pr = brief.partnerResearch;
+  if (pr) {
+    parts.push("## Partner Research");
+    parts.push("");
+    parts.push(pr.summary);
+    parts.push("");
+    if (pr.domain) {
+      parts.push("- **Domain:** " + pr.domain);
+    }
+    if (pr.targetUsers?.length) {
+      parts.push("- **Target users:** " + pr.targetUsers.join(", "));
+    }
+    if (pr.products?.length) {
+      parts.push("- **Products / services:** " + pr.products.join(", "));
+    }
+    if (pr.constraints?.length) {
+      parts.push("- **Constraints:** " + pr.constraints.join("; "));
+    }
+    if (pr.notes?.length) {
+      parts.push("- **Notes:**");
+      pr.notes.forEach((n) => parts.push("  - " + n));
+    }
+    if (pr.sources?.length) {
+      parts.push("- **Sources:** " + pr.sources.map((s) => s.label).join(", "));
+    }
+    parts.push("");
+  }
+
+  const inf = brief.inferred;
+  if (inf) {
+    parts.push("## Inferred Project Context");
+    parts.push("");
+    if (inf.domain) parts.push("- **Domain:** " + inf.domain);
+    if (inf.projectType) parts.push("- **Project type:** " + inf.projectType);
+    if (inf.stack?.length) {
+      parts.push("- **Stack:** " + inf.stack.join(", "));
+    }
+    if (inf.constraints?.length) {
+      parts.push("- **Constraints:** " + inf.constraints.join("; "));
+    }
+    if (inf.integrations?.length) {
+      parts.push("- **Integrations:** " + inf.integrations.join(", "));
+    }
+    if (inf.targetUsers?.length) {
+      parts.push("- **Target users:** " + inf.targetUsers.join(", "));
+    }
+    parts.push("");
+  }
+
+  const sections = brief.discoveredSections;
+  if (sections?.length) {
+    parts.push("## Discovered Architecture Layers");
+    parts.push("");
+    parts.push(
+      "Layers inferred from the brief and partner context (before locking decisions):",
+    );
+    parts.push("");
+    for (const s of sections) {
+      parts.push(`- **${s.label}** (${s.priority}) — ${s.reason || s.sub}`);
+    }
+    parts.push("");
+  }
+
+  return parts.join("\n").trim() || "";
 }
 
 export function buildInitialSdsState(
