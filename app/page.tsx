@@ -1083,6 +1083,8 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
 
     const planPrompt = `Write a detailed phased EXECUTION PLAN in markdown for this project. Include 4-6 phases. For each phase: phase name, goal, list of specific tasks with checkboxes, estimated complexity (S/M/L), dependencies, and definition of done. End with a "Quick Start" section — the exact first 3 commands or actions to run.\n\nContext:\n${context}`;
 
+    const MEMORY_BANK_GAP_MS = 2200;
+
     try {
       const planText = await callClaudeStream(sys, planPrompt, (chunk) => {
         setPlanStreamingText((prev) => prev + chunk);
@@ -1090,45 +1092,44 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
       setPlan((prev) => ({ ...prev, plan: planText }));
       setPlanStreamingText("");
 
-      const [
-        projectbrief,
-        productcontext,
-        systempatterns,
-        techcontext,
-        activecontext,
-        progressfile,
-      ] = await Promise.all([
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-        callClaudeWithKeyCheck(
-          sys,
-          `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
-          apiKeyValue,
-        ),
-      ]);
+      await new Promise((r) => setTimeout(r, MEMORY_BANK_GAP_MS));
+
+      const memoryBankPrompts: { name: string; prompt: string }[] = [
+        {
+          name: "projectbrief",
+          prompt: `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
+        },
+        {
+          name: "productcontext",
+          prompt: `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
+        },
+        {
+          name: "systempatterns",
+          prompt: `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
+        },
+        {
+          name: "techcontext",
+          prompt: `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
+        },
+        {
+          name: "activecontext",
+          prompt: `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
+        },
+        {
+          name: "progressfile",
+          prompt: `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
+        },
+      ];
+
+      const results: string[] = [];
+      for (const { prompt } of memoryBankPrompts) {
+        const text = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
+        results.push(text);
+        await new Promise((r) => setTimeout(r, MEMORY_BANK_GAP_MS));
+      }
+
+      const [projectbrief, productcontext, systempatterns, techcontext, activecontext, progressfile] =
+        results;
 
       setPlan((prev) => ({
         ...prev,

@@ -11,6 +11,13 @@ const MAX_TOKENS = 4000;
 const NO_KEY_MESSAGE =
   "No API key. Add your Anthropic API key in the app (header) or set ANTHROPIC_API_KEY in the server environment.";
 
+const RATE_LIMIT_RETRY_ATTEMPTS = 2;
+const RATE_LIMIT_DEFAULT_WAIT_MS = 15000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 export async function POST(request: NextRequest) {
   let body: {
     systemPrompt: string;
@@ -45,8 +52,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  try {
-    const response = await fetch(ANTHROPIC_API_URL, {
+  const makeRequest = () =>
+    fetch(ANTHROPIC_API_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -61,6 +68,22 @@ export async function POST(request: NextRequest) {
         stream: wantStream === true,
       }),
     });
+
+  try {
+    let response = await makeRequest();
+    let attemptsLeft = RATE_LIMIT_RETRY_ATTEMPTS;
+
+    while (response.status === 429 && attemptsLeft > 0) {
+      const retryAfter = response.headers.get("retry-after");
+      const waitSec = retryAfter ? Number(retryAfter) : null;
+      const waitMs =
+        waitSec != null && !Number.isNaN(waitSec) && waitSec > 0
+          ? Math.min(waitSec * 1000, 60000)
+          : RATE_LIMIT_DEFAULT_WAIT_MS;
+      await sleep(waitMs);
+      attemptsLeft--;
+      response = await makeRequest();
+    }
 
     if (response.status === 429) {
       return NextResponse.json(
