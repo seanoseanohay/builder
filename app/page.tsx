@@ -102,8 +102,10 @@ export default function Home() {
   const [prdLoading, setPrdLoading] = useState(false);
   const [prdOutputVisible, setPrdOutputVisible] = useState(false);
   const [planLoading, setPlanLoading] = useState(false);
+  const [planStepLabel, setPlanStepLabel] = useState("");
   const [planOutputVisible, setPlanOutputVisible] = useState(false);
   const [planStreamingText, setPlanStreamingText] = useState("");
+  const [planElapsedSec, setPlanElapsedSec] = useState(0);
   const [inferLoading, setInferLoading] = useState(false);
   const [inferredVisible, setInferredVisible] = useState(false);
   const [requirementsBreakdownLoading, setRequirementsBreakdownLoading] =
@@ -593,6 +595,15 @@ Rules:
     }
   }, [currentStep, brief.partnerResearch, brief.requirementsBreakdown, requirementsBreakdownLoading, fetchRequirementsBreakdown]);
 
+  useEffect(() => {
+    if (!planLoading) return;
+    setPlanElapsedSec(0);
+    const interval = setInterval(() => {
+      setPlanElapsedSec((s) => s + 1);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [planLoading]);
+
   const continueToProposingLayers = useCallback(() => {
     setCompletedSteps((s) => new Set([...Array.from(s), 2]));
     goToStep(3);
@@ -1026,6 +1037,7 @@ Format as clean markdown with proper headers.`;
     setCompletedSteps((s) => new Set([...Array.from(s), 5]));
     goToStep(6);
     setPlanLoading(true);
+    setPlanStepLabel("Writing PLAN.md...");
     setPlanOutputVisible(true);
     setPlanStreamingText("");
 
@@ -1092,37 +1104,47 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
       setPlan((prev) => ({ ...prev, plan: planText }));
       setPlanStreamingText("");
 
+      setPlanStepLabel("Preparing memory-bank files...");
       await new Promise((r) => setTimeout(r, MEMORY_BANK_GAP_MS));
 
-      const memoryBankPrompts: { name: string; prompt: string }[] = [
+      const memoryBankPrompts: { name: string; label: string; prompt: string }[] = [
         {
           name: "projectbrief",
+          label: "projectbrief.md",
           prompt: `Write the memory-bank/projectbrief.md file for this project. This is the foundation document — source of truth for scope. Include: project name, one-line description, core requirements (numbered), goals, scope boundaries (in scope / out of scope), target users, and success criteria. Format in clean markdown.\n\nContext:\n${context}`,
         },
         {
           name: "productcontext",
+          label: "productContext.md",
           prompt: `Write the memory-bank/productContext.md file. Cover: why this project exists, the exact problem it solves, how the product should work (user flow narrative), key user experience goals, and what "done" looks like from a user perspective. Clean markdown.\n\nContext:\n${context}`,
         },
         {
           name: "systempatterns",
+          label: "systemPatterns.md",
           prompt: `Write the memory-bank/systemPatterns.md file. Cover: system architecture overview, key technical decisions with rationale, design patterns to use, component/module relationships, data flow, and coding conventions. Be opinionated and specific.\n\nContext:\n${context}`,
         },
         {
           name: "techcontext",
+          label: "techContext.md",
           prompt: `Write the memory-bank/techContext.md file. Cover: full tech stack with versions, development environment setup (step by step), all dependencies, environment variables needed, deployment approach, and technical constraints.\n\nContext:\n${context}`,
         },
         {
           name: "activecontext",
+          label: "activeContext.md",
           prompt: `Write the memory-bank/activeContext.md file for project kickoff. This represents current state at the START of the project. Include: current phase (Phase 1), immediate next steps (top 3), open questions that need answers, initial decisions made, and what should be focused on first session.\n\nContext:\n${context}`,
         },
         {
           name: "progressfile",
+          label: "progress.md",
           prompt: `Write the memory-bank/progress.md file for project kickoff. This is the living progress tracker. At project start include: what works (nothing yet — project scaffolding), what's left to build (full feature backlog organized by phase), current status (Phase 1 - Not Started), and known unknowns. Include a checklist format for features.\n\nContext:\n${context}`,
         },
       ];
 
       const results: string[] = [];
-      for (const { prompt } of memoryBankPrompts) {
+      const total = memoryBankPrompts.length;
+      for (let i = 0; i < memoryBankPrompts.length; i++) {
+        const { label, prompt } = memoryBankPrompts[i];
+        setPlanStepLabel(`Writing memory-bank/${label} (${i + 1}/${total})...`);
         const text = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
         results.push(text);
         await new Promise((r) => setTimeout(r, MEMORY_BANK_GAP_MS));
@@ -1147,6 +1169,8 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
       setPlanStreamingText("");
       setPlan({ plan: `Error: ${e instanceof Error ? e.message : String(e)}` });
       setPlanOutputVisible(true);
+    } finally {
+      setPlanStepLabel("");
     }
     setPlanLoading(false);
   }, [
@@ -2565,9 +2589,39 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
           <div className="loading-block active">
             <div className="spinner" />
             <div className="loading-text">
-              <span className="status-dot" /> Building phased plan + memory-bank
-              files...
+              <span className="status-dot" />{" "}
+              {planStepLabel || "Building phased plan + memory-bank files..."}
             </div>
+            <div
+              style={{
+                marginTop: 8,
+                fontSize: 12,
+                color: "var(--muted)",
+              }}
+            >
+              Elapsed: {Math.floor(planElapsedSec / 60)}:{String(planElapsedSec % 60).padStart(2, "0")}
+              {" — "}
+              {planElapsedSec < 60
+                ? "still working..."
+                : "each file can take 1–2 min; if the timer is increasing, the request is in progress."}
+            </div>
+          </div>
+        )}
+
+        {planOutputVisible && planLoading && planStreamingText !== "" && (
+          <div
+            style={{
+              marginBottom: 12,
+              padding: "8px 12px",
+              borderRadius: 8,
+              background: "rgba(255,255,255,0.06)",
+              fontSize: 13,
+              color: "var(--muted)",
+            }}
+          >
+            <span className="status-dot" /> {planStepLabel || "Writing PLAN.md..."}
+            {" · "}
+            Elapsed: {Math.floor(planElapsedSec / 60)}:{String(planElapsedSec % 60).padStart(2, "0")}
           </div>
         )}
 
