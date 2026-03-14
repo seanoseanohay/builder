@@ -935,6 +935,27 @@ REVIEW NOTES: [anything surfaced in discussion]`;
       })
       .join("\n\n");
 
+    const hasRefinedReqs =
+      !!brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0;
+    const userReqsBlock =
+      (brief.userRequirements?.length ?? 0) > 0
+        ? "\n### Additional requirements from you\n\n" +
+          (brief.userRequirements ?? [])
+            .map(
+              (r) =>
+                "- " +
+                r.requirement +
+                (r.explanation ? " — " + r.explanation : ""),
+            )
+            .join("\n")
+        : "";
+    const refinedReqsSection = hasRefinedReqs
+      ? "## REFINED REQUIREMENTS (from Understanding step):\n" +
+        (brief.requirementsBreakdown || "") +
+        userReqsBlock +
+        "\n\n"
+      : "";
+
     const sys = `You are a senior product manager. Write a comprehensive, developer-ready PRD in clean markdown format. Be specific, structured, and thorough. This document will be given directly to an AI coding agent to build from.`;
     const prompt = `Write a full Product Requirements Document (PRD) for the following project. Every section must be written through the lens of ${intakeData?.company}'s actual business context. The system design decisions below are FINAL — reflect them throughout the document.
 
@@ -956,12 +977,7 @@ ADDITIONAL NOTES: ${intakeData?.additionalNotes || "none"}
 TARGET USERS: ${(grounding.targetUsers || []).join(", ") || "TBD"}
 DOMAIN: ${grounding.domain || "TBD"}
 
-${(brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0) ? `## REFINED REQUIREMENTS (from Understanding step):
-${brief.requirementsBreakdown || ""}
-${(brief.userRequirements?.length ?? 0) > 0 ? "\n### Additional requirements from you\n" + (brief.userRequirements ?? []).map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""}).join("\n") : ""}
-` : ""}
-
-## LOCKED SYSTEM DESIGN DECISIONS:
+${refinedReqsSection}## LOCKED SYSTEM DESIGN DECISIONS:
 ${decisionRecords}
 
 RESEARCH FINDINGS:
@@ -1026,6 +1042,25 @@ Format as clean markdown with proper headers.`;
       })
       .filter(Boolean)
       .join("\n");
+    const hasPlanReqs =
+      !!brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0;
+    const planUserReqs =
+      (brief.userRequirements?.length ?? 0) > 0
+        ? (brief.userRequirements ?? [])
+            .map(
+              (r) =>
+                "- " +
+                r.requirement +
+                (r.explanation ? " — " + r.explanation : ""),
+            )
+            .join("\n")
+        : "";
+    const planRefinedSection = hasPlanReqs
+      ? "REFINED REQUIREMENTS:\n" +
+        (brief.requirementsBreakdown || "") +
+        (planUserReqs ? "\n" + planUserReqs : "") +
+        "\n\n"
+      : "";
     const context = `
 Company: ${intake2?.company}
 Company Profile: ${cp2.substring(0, 300)}...
@@ -1041,9 +1076,7 @@ Discovered Layers: ${researchSections.map((sec) => `${sec.label} (${sec.priority
 LOCKED STACK DECISIONS:
 ${decisions2 || "See PRD for details"}
 
-${(brief.requirementsBreakdown || (brief.userRequirements?.length ?? 0) > 0) ? `REFINED REQUIREMENTS:\n${brief.requirementsBreakdown || ""}\n${(brief.userRequirements?.length ?? 0) > 0 ? (brief.userRequirements ?? []).map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""}).join("\n") : ""}\n` : ""}
-
-PRD Summary: ${prd.substring(0, 600)}...
+${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
 `.trim();
 
     const sys = `You are a senior software architect and technical project manager. Write detailed, actionable project planning documents that will be used by an AI coding agent (Claude) inside Cursor. All content should be in clean markdown. Be specific, thorough, and opinionated about the right approach.`;
@@ -1136,7 +1169,12 @@ PRD Summary: ${prd.substring(0, 600)}...
             (brief.userRequirements?.length ?? 0) > 0
               ? "\n## Additional requirements (from you)\n\n" +
                 (brief.userRequirements ?? [])
-                  .map((r) => `- ${r.requirement}${r.explanation ? ` — ${r.explanation}` : ""})
+                  .map(
+                    (r) =>
+                      "- " +
+                      r.requirement +
+                      (r.explanation ? " — " + r.explanation : ""),
+                  )
                   .join("\n")
               : "",
           ].join("")
