@@ -248,7 +248,11 @@ export default function Home() {
 
   const goToStep = useCallback(
     (n: number) => {
-      if (n > currentStep && !completedSteps.has(currentStep)) return;
+      const blocked =
+        n > currentStep &&
+        !completedSteps.has(currentStep) &&
+        !(currentStep === 6 && n === 7);
+      if (blocked) return;
       setCurrentStep(n);
       window.scrollTo({ top: 0, behavior: "smooth" });
     },
@@ -1162,7 +1166,7 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
         activecontext,
         progressfile,
       }));
-      setCompletedSteps((s) => new Set([...Array.from(s), 4]));
+      setCompletedSteps((s) => new Set([...Array.from(s), 6]));
       setPlanOutputVisible(true);
       persistSession();
     } catch (e) {
