@@ -163,6 +163,7 @@ export default function Home() {
           selectedOption: s.selectedOption,
           decisionRecord: s.decisionRecord,
           chatHistory: s.chatHistory,
+          plainEnglishExplanation: s.plainEnglishExplanation,
         };
     });
     saveSession({
@@ -809,6 +810,77 @@ Rules:
   const [customOptionLoading, setCustomOptionLoading] = useState<string | null>(
     null,
   );
+  const [plainEnglishLoadingSection, setPlainEnglishLoadingSection] = useState<
+    string | null
+  >(null);
+
+  const explainSectionInPlainEnglish = useCallback(
+    async (secId: string) => {
+      const sec = researchSections.find((s) => s.id === secId);
+      const sectionState = sdsState[secId];
+      const data = sectionState?.data;
+      const selected = sectionState?.selectedOption;
+      if (!sec || !data) return;
+      setPlainEnglishLoadingSection(secId);
+      const intakeContext = brief.intake || intake;
+      const companyProfile =
+        brief.partnerResearch?.summary || brief.companyProfile || "";
+      const contextBlock = `
+PROJECT: ${intakeContext.projectName} for ${intakeContext.company}
+PROBLEM: ${intakeContext.problemStatement}
+REQUIREMENTS: ${intakeContext.functionalReqs || "none"}
+${companyProfile ? `COMPANY CONTEXT: ${companyProfile.slice(0, 800)}` : ""}
+`.trim();
+      const sys = `You are explaining a technical architecture choice to a non-technical stakeholder. Use simple language. No jargon unless you briefly define it. Be concise.`;
+      const prompt = `We're building: ${intakeContext.projectName}. For the "${sec.label}" layer we've chosen: ${selected?.name ?? data.options?.[0]?.name ?? "the recommended option"}.
+
+Technical rationale (for your reference): ${data.recommendation}
+
+Write 2–3 short paragraphs in plain English:
+1) What this layer is and why it matters for this project (what problem it solves).
+2) Why this specific choice is a good fit for our project, in simple terms.
+3) How it fits into the bigger picture of what we're building.
+
+Project context:
+${contextBlock}
+
+Return only the plain-English explanation — no headings, no bullet points, just flowing paragraphs a layperson can understand.`;
+
+      try {
+        const raw = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
+        const explanation = raw.trim();
+        setSdsState((prev) => ({
+          ...prev,
+          [secId]: {
+            ...prev[secId],
+            plainEnglishExplanation: explanation,
+          },
+        }));
+        persistSession();
+      } catch (e) {
+        setSdsState((prev) => ({
+          ...prev,
+          [secId]: {
+            ...prev[secId],
+            plainEnglishExplanation: `Could not generate explanation: ${e instanceof Error ? e.message : String(e)}`,
+          },
+        }));
+      }
+      setPlainEnglishLoadingSection(null);
+    },
+    [
+      brief.intake,
+      brief.partnerResearch,
+      brief.companyProfile,
+      intake,
+      researchSections,
+      sdsState,
+      apiKeyValue,
+      callClaudeWithKeyCheck,
+      persistSession,
+    ],
+  );
+
   const submitCustomOption = useCallback(
     async (secId: string) => {
       const userText = window.prompt(
@@ -2327,6 +2399,47 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
                           <div className="sds-rec-content">
                             {sv.data.recommendation}
                           </div>
+                        </div>
+                        <div className="sds-plain-english">
+                          {sv.plainEnglishExplanation ? (
+                            <div className="sds-plain-english-content">
+                              <div className="sds-plain-english-label">
+                                In plain English
+                              </div>
+                              <div className="sds-plain-english-text">
+                                {sv.plainEnglishExplanation}
+                              </div>
+                              <button
+                                type="button"
+                                className="sds-plain-english-refresh"
+                                onClick={() =>
+                                  explainSectionInPlainEnglish(sec.id)
+                                }
+                                disabled={
+                                  plainEnglishLoadingSection === sec.id
+                                }
+                              >
+                                {plainEnglishLoadingSection === sec.id
+                                  ? "Updating..."
+                                  : "Regenerate"}
+                              </button>
+                            </div>
+                          ) : (
+                            <button
+                              type="button"
+                              className="sds-plain-english-btn"
+                              onClick={() =>
+                                explainSectionInPlainEnglish(sec.id)
+                              }
+                              disabled={
+                                plainEnglishLoadingSection === sec.id
+                              }
+                            >
+                              {plainEnglishLoadingSection === sec.id
+                                ? "Generating..."
+                                : "Explain in plain English"}
+                            </button>
+                          )}
                         </div>
                         <div className="sds-options">
                           <div className="sds-options-label">

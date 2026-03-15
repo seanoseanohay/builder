@@ -670,6 +670,56 @@ select option {
   white-space: pre-wrap;
 }
 
+.sds-plain-english {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.sds-plain-english-btn,
+.sds-plain-english-refresh {
+  font-size: 12px;
+  color: var(--accent);
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.sds-plain-english-btn:hover:not(:disabled),
+.sds-plain-english-refresh:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--fg);
+}
+
+.sds-plain-english-btn:disabled,
+.sds-plain-english-refresh:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.sds-plain-english-label {
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.sds-plain-english-text {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #b8b8d0;
+  white-space: pre-wrap;
+  margin-bottom: 10px;
+}
+
+.sds-plain-english-refresh {
+  margin-top: 4px;
+}
+
 .sds-options {
   padding: 16px;
   border-bottom: 1px solid var(--border);

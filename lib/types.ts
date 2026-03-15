@@ -62,6 +62,8 @@ export interface SDSStateSection {
   selectedOption: { index: number; name: string } | null;
   decisionRecord?: string;
   chatHistory: Array<{ role: string; content: string }>;
+  /** Layperson-friendly explanation of this layer and why this option fits the project */
+  plainEnglishExplanation?: string;
 }
 
 export interface UserRequirement {
