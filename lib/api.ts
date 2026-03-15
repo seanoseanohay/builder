@@ -46,6 +46,7 @@ export function setStoredApiKey(key: string | null): void {
 export function callClaude(
   systemPrompt: string,
   userPrompt: string,
+  options?: { maxTokens?: number },
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const run = async () => {
@@ -59,11 +60,13 @@ export function callClaude(
         systemPrompt: string;
         userPrompt: string;
         apiKey?: string;
+        max_tokens?: number;
       } = {
         systemPrompt,
         userPrompt,
       };
       if (apiKey) body.apiKey = apiKey;
+      if (options?.maxTokens != null) body.max_tokens = options.maxTokens;
       try {
         const res = await fetch("/api/claude", {
           method: "POST",

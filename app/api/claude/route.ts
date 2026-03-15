@@ -24,6 +24,7 @@ export async function POST(request: NextRequest) {
     userPrompt: string;
     apiKey?: string;
     stream?: boolean;
+    max_tokens?: number;
   };
   try {
     body = await request.json();
@@ -36,7 +37,12 @@ export async function POST(request: NextRequest) {
     userPrompt,
     apiKey: bodyKey,
     stream: wantStream,
+    max_tokens: requestedMaxTokens,
   } = body;
+  const maxTokens =
+    requestedMaxTokens != null && requestedMaxTokens > 0
+      ? Math.min(requestedMaxTokens, 8192 * 4)
+      : MAX_TOKENS;
   const requestKey =
     request.headers.get("x-anthropic-api-key")?.trim() || bodyKey?.trim();
   const apiKey = requestKey || process.env.ANTHROPIC_API_KEY;
@@ -62,7 +68,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: MAX_TOKENS,
+        max_tokens: maxTokens,
         system: systemPrompt,
         messages: [{ role: "user", content: userPrompt }],
         stream: wantStream === true,

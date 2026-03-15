@@ -131,6 +131,7 @@ export default function Home() {
       systemPrompt: string,
       userPrompt: string,
       keyFromInput?: string,
+      options?: { maxTokens?: number },
     ): Promise<string> => {
       if (keyFromInput?.trim() && !getStoredApiKeyIfSet()) {
         setStoredApiKey(keyFromInput);
@@ -138,7 +139,7 @@ export default function Home() {
       }
       setApiKeyError(null);
       try {
-        return await callClaude(systemPrompt, userPrompt);
+        return await callClaude(systemPrompt, userPrompt, options);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (msg.startsWith("NO_API_KEY:")) {
@@ -1017,7 +1018,9 @@ The PRD must include:
 Format as clean markdown with proper headers.`;
 
     try {
-      const prdText = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue);
+      const prdText = await callClaudeWithKeyCheck(sys, prompt, apiKeyValue, {
+        maxTokens: 16384,
+      });
       setPrd(prdText);
       setPrdOutputVisible(true);
       persistSession();
