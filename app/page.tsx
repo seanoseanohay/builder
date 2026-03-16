@@ -115,6 +115,9 @@ export default function Home() {
   const [apiKeyError, setApiKeyError] = useState<string | null>(null);
   const [apiKeySavedFeedback, setApiKeySavedFeedback] = useState(false);
   const [hasStoredApiKey, setHasStoredApiKey] = useState(false);
+  const [repoDocsLoading, setRepoDocsLoading] = useState(false);
+  const [repoDocsError, setRepoDocsError] = useState<string | null>(null);
+  const [repoDocsFiles, setRepoDocsFiles] = useState<Record<string, string> | null>(null);
   const savedSessionRef = useRef<SavedSession | null>(null);
 
   const mergedFromBrief = mergeResearchSections(
@@ -1308,6 +1311,57 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
     URL.revokeObjectURL(url);
   }, [brief, prd, plan]);
 
+  const buildRepoDocs = useCallback(async () => {
+    const apiKey = getStoredApiKeyIfSet() || apiKeyValue;
+    if (!apiKey) {
+      setApiKeyError("Add your Anthropic API key to build repo docs.");
+      return;
+    }
+    setRepoDocsError(null);
+    setRepoDocsFiles(null);
+    setRepoDocsLoading(true);
+    try {
+      const researchDoc = buildPreSearchMarkdown(brief);
+      const response = await fetch("/api/repo-docs", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Anthropic-API-Key": apiKey,
+        },
+        body: JSON.stringify({
+          prd,
+          executionPlan: plan.plan || "",
+          research: researchDoc || "",
+        }),
+      });
+      const data = (await response.json()) as { error?: string; files?: Record<string, string> };
+      if (!response.ok) {
+        setRepoDocsError(data.error || `Request failed: ${response.status}`);
+        return;
+      }
+      if (data.files) setRepoDocsFiles(data.files);
+    } catch (e) {
+      setRepoDocsError(e instanceof Error ? e.message : "Failed to build repo docs");
+    } finally {
+      setRepoDocsLoading(false);
+    }
+  }, [brief, prd, plan, apiKeyValue]);
+
+  const downloadRepoDocs = useCallback(async () => {
+    if (!repoDocsFiles) return;
+    const zip = new JSZip();
+    for (const [filename, content] of Object.entries(repoDocsFiles)) {
+      zip.file(filename, content);
+    }
+    const blob = await zip.generateAsync({ type: "blob" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "RepoDocsBundle.zip";
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [repoDocsFiles]);
+
   const startOver = useCallback(() => {
     if (!confirm("Start a new project? This will clear all generated content."))
       return;
@@ -1324,6 +1378,8 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
     setPlanOutputVisible(false);
     setPlanStreamingText("");
     setOpenCards(new Set(["research-doc", "prd-full", "ep-plan"]));
+    setRepoDocsFiles(null);
+    setRepoDocsError(null);
     deleteSession();
     goToStep(1);
   }, [goToStep]);
@@ -2966,6 +3022,45 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
           <button className="btn btn-success" onClick={downloadAll}>
             ⬇ Download Project Bundle
           </button>
+        </div>
+
+        <div className="download-all-card" style={{ marginTop: 16 }}>
+          <h3>📁 Build repo docs instead</h3>
+          <p>
+            Turn the PRD, execution plan, and research into a clean repo structure:{" "}
+            <code>AGENTS.md</code>, <code>README.md</code>, and <code>docs/</code> (
+            requirements.md, scope.md, phases.md, architecture.md, decisions.md).
+            Designed for agentic development (Codex, Claude Code).
+          </p>
+          {repoDocsLoading && (
+            <p className="section-desc" style={{ marginBottom: 12 }}>
+              Building repo docs…
+            </p>
+          )}
+          {repoDocsError && (
+            <p style={{ color: "var(--error)", marginBottom: 12, fontSize: 14 }}>
+              {repoDocsError}
+            </p>
+          )}
+          {repoDocsFiles && (
+            <p style={{ marginBottom: 12, fontSize: 14 }}>
+              Repo docs ready. Download the bundle and unzip into your project root.
+            </p>
+          )}
+          <div className="btn-row" style={{ gap: 8 }}>
+            <button
+              className="btn btn-primary"
+              onClick={buildRepoDocs}
+              disabled={repoDocsLoading || !prd || !plan.plan}
+            >
+              {repoDocsLoading ? "Building…" : "Build repo docs"}
+            </button>
+            {repoDocsFiles && (
+              <button className="btn btn-success" onClick={downloadRepoDocs}>
+                ⬇ Download Repo Docs Bundle
+              </button>
+            )}
+          </div>
         </div>
 
         <div className="btn-row" style={{ marginTop: 16 }}>
