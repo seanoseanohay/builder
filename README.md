@@ -30,11 +30,24 @@ Open [http://localhost:3000](http://localhost:3000).
 4. Optionally set `ANTHROPIC_API_KEY` in **Settings → Environment Variables** for a private deployment where you don’t need to enter a key in the UI.
 5. Deploy. The `/api/claude` route uses the key from the request (user’s key) when present, otherwise the server env key.
 
+## Pipeline (OpenRouter)
+
+The **Pipeline** (`/pipeline`) runs a document → build flow with limited human-in-the-loop:
+
+1. **Input:** Plan, Requirements, PRD, Research (four text blobs).
+2. **Refiner:** Improves docs using your refiner instructions; asks clarification questions. Each question is sent to 3–5 models via OpenRouter; if consensus is above the threshold (slider, default 80%), the system auto-picks; otherwise it asks a human.
+3. **Projgen:** Turns refined docs into repo docs (requirements.md, scope, phases, architecture, etc.) with the same consensus behavior.
+4. **Builder:** Writes repo docs to a workspace and runs **Claude Code** headless (`claude -p "..."`) to scaffold and build. Requires Claude CLI installed on the server.
+
+**API key:** Set `OPENROUTER_API_KEY` in `.env.local` or enter it on the Pipeline page (stored in localStorage). One key for all models (Claude, GPT, etc.) via OpenRouter.
+
 ## Tech
 
 - **Next.js 14** (App Router)
 - **React** for the wizard UI
 - **API route** `app/api/claude/route.ts` calls the Anthropic Messages API with `ANTHROPIC_API_KEY`
+- **API route** `app/api/openrouter/route.ts` proxies OpenRouter for the pipeline
+- **Pipeline** uses `prompts/refiner.md`, `prompts/projgen.md`, and structured output parsing in `lib/parse-structured.ts`
 
 No database; state lives in React state and localStorage.
 

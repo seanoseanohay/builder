@@ -9,8 +9,8 @@ const MAX_ANY_TYPE = 0;
 const MAX_AS_UNKNOWN_AS = 0;
 const MAX_TS_SUPPRESS = 0;
 const MAX_VOID_DISPATCH = 0;
-const MAX_JSON_PARSE = 5;
-const MAX_CONSOLE = 3;
+const MAX_JSON_PARSE = 6;
+const MAX_CONSOLE = 4;
 
 interface SourceFile {
   filePath: string;

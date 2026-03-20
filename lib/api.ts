@@ -1,5 +1,6 @@
 const API_GAP_MS = 1200;
 const STORAGE_KEY = "anthropic-api-key";
+const OPENROUTER_STORAGE_KEY = "openrouter-api-key";
 let lastCall = 0;
 const queue: Array<() => void> = [];
 let draining = false;
@@ -37,6 +38,28 @@ export function setStoredApiKey(key: string | null): void {
       window.localStorage.removeItem(STORAGE_KEY);
     } else {
       window.localStorage.setItem(STORAGE_KEY, key.trim());
+    }
+  } catch {
+    // ignore
+  }
+}
+
+export function getStoredOpenRouterKey(): string | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window.localStorage.getItem(OPENROUTER_STORAGE_KEY)?.trim() || null;
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredOpenRouterKey(key: string | null): void {
+  if (typeof window === "undefined") return;
+  try {
+    if (key == null || key.trim() === "") {
+      window.localStorage.removeItem(OPENROUTER_STORAGE_KEY);
+    } else {
+      window.localStorage.setItem(OPENROUTER_STORAGE_KEY, key.trim());
     }
   } catch {
     // ignore

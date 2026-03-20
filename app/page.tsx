@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import JSZip from "jszip";
 import {
   callClaude,
@@ -1435,6 +1436,10 @@ ${planRefinedSection}PRD Summary: ${prd.substring(0, 600)}...
         <h1>Project Kickstarter</h1>
         <p className="subtitle">
           Brief → Proposing layers → Research → PRD → Plan → Export
+          {" · "}
+          <Link href="/pipeline" className="text-blue-600 hover:underline">
+            Pipeline (OpenRouter)
+          </Link>
         </p>
 
         <div className="api-key-strip">
