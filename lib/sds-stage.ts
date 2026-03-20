@@ -3,11 +3,10 @@
  * Server-only.
  */
 import { callOpenRouterServer } from "./openrouter-server";
-import { computeConsensus } from "./consensus";
+import { runConsensusWithEscalation } from "./consensus";
 import { safeParseJSON } from "./json";
 import { SECTION_PROMPTS } from "./sections";
 import type { SectionId } from "./sections";
-import { CONSENSUS_MODELS } from "./pipeline-types";
 import type { PipelinePolicy, PipelineResearchResult, SDSDecision } from "./pipeline-types";
 
 const SDS_MODEL = "anthropic/claude-sonnet-4";
@@ -94,23 +93,19 @@ ${optionList}
 
 Answer:`;
 
-  const models = [...CONSENSUS_MODELS].slice(0, policy.consensusModelCount);
-  const answers: string[] = [];
-  for (const model of models) {
-    try {
+  const consensus = await runConsensusWithEscalation(
+    consensusPrompt,
+    policy,
+    async (model) => {
       const ans = await callOpenRouterServer({
         model,
         messages: [{ role: "user", content: consensusPrompt }],
         max_tokens: 50,
         apiKey,
       });
-      answers.push(ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A");
-    } catch {
-      answers.push("A");
-    }
-  }
-  const valid = answers.filter((a) => a.length > 0);
-  const consensus = computeConsensus(valid, policy.consensusThresholdPercent);
+      return ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
+    },
+  );
   const letter = consensus.chosenAnswer.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
   const index = letter.charCodeAt(0) - 65;
   const chosenIndex = Math.max(0, Math.min(index, options.length - 1));

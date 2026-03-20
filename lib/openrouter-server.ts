@@ -1,7 +1,10 @@
 /**
  * Server-only OpenRouter client. Use from API routes (e.g. pipeline).
  * Calls OpenRouter directly with the provided API key (or OPENROUTER_API_KEY).
+ * When LANGSMITH_TRACING=true and LANGSMITH_API_KEY are set, each call is traced to LangSmith.
  */
+
+import { traceable } from "langsmith/traceable";
 
 export type OpenRouterMessage =
   | { role: "system"; content: string }
@@ -10,13 +13,15 @@ export type OpenRouterMessage =
 
 const OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions";
 
-export async function callOpenRouterServer(params: {
+export type CallOpenRouterParams = {
   model: string;
   messages: OpenRouterMessage[];
   max_tokens?: number;
   temperature?: number;
   apiKey?: string | null;
-}): Promise<string> {
+};
+
+async function callOpenRouterServerImpl(params: CallOpenRouterParams): Promise<string> {
   const apiKey = params.apiKey ?? process.env.OPENROUTER_API_KEY;
   if (!apiKey) {
     throw new Error(
@@ -45,6 +50,22 @@ export async function callOpenRouterServer(params: {
 
   const data = (await res.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   };
   return data.choices?.[0]?.message?.content ?? "";
+}
+
+const tracedOpenRouter = traceable(callOpenRouterServerImpl, {
+  name: "OpenRouter",
+  run_type: "llm",
+});
+
+export async function callOpenRouterServer(params: CallOpenRouterParams): Promise<string> {
+  const tracing =
+    process.env.LANGSMITH_TRACING === "true" ||
+    process.env.LANGCHAIN_TRACING_V2 === "true";
+  if (tracing && process.env.LANGSMITH_API_KEY) {
+    return tracedOpenRouter(params);
+  }
+  return callOpenRouterServerImpl(params);
 }

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { traceable } from "langsmith/traceable";
 import { safeParseJSON } from "@/lib/json";
 import {
   buildWebsiteTargets,
@@ -24,7 +25,7 @@ interface ResearchResponse {
   discoveredSections: ResearchSection[];
 }
 
-async function callClaudeJson(
+async function callClaudeJsonImpl(
   apiKey: string,
   system: string,
   user: string,
@@ -65,6 +66,21 @@ async function callClaudeJson(
       .map((block) => block.text ?? "")
       .join("") ?? ""
   );
+}
+
+const tracedClaudeJson = traceable(callClaudeJsonImpl, {
+  name: "Anthropic Research",
+  run_type: "llm",
+});
+
+function callClaudeJson(apiKey: string, system: string, user: string): Promise<string> {
+  const tracing =
+    process.env.LANGSMITH_TRACING === "true" ||
+    process.env.LANGCHAIN_TRACING_V2 === "true";
+  if (tracing && process.env.LANGSMITH_API_KEY) {
+    return tracedClaudeJson(apiKey, system, user);
+  }
+  return callClaudeJsonImpl(apiKey, system, user);
 }
 
 async function fetchPageText(

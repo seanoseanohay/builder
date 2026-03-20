@@ -159,7 +159,7 @@ export default function Pipeline() {
         <div className="header-tag">{"// cursor + claude code workflow"}</div>
         <h1>Project Kickstarter</h1>
         <p className="subtitle">
-          Brief → Research → Layers → SDS (consensus) → PRD → Plan → Refined → Distilled → Build. Human only when consensus is below threshold.
+          Brief → Research → Layers → SDS (consensus) → PRD → Plan → Refined → Distilled → Build. Consensus escalates 5 → 10 → 20 agents; human only if still below threshold at 20.
         </p>
       </header>
 
@@ -182,7 +182,9 @@ export default function Pipeline() {
 
       <section className="pipeline-section">
         <h2 className="section-title">Policy</h2>
-        <p className="section-desc">Consensus threshold: above = auto-pick; below = ask human.</p>
+        <p className="section-desc">
+          Consensus threshold: above = auto-pick. Below threshold we escalate: 5 → 10 → 20 agents; only if still below at 20 do we ask human.
+        </p>
         <div className="pipeline-policy">
           <label className="pipeline-policy-label">
             <span>Consensus threshold</span>
@@ -198,19 +200,6 @@ export default function Pipeline() {
             }
             className="pipeline-slider"
           />
-          <label className="field-group pipeline-models-row">
-            <span className="pipeline-policy-label-inline">Models for consensus</span>
-            <input
-              type="number"
-              min={3}
-              max={5}
-              value={policy.consensusModelCount}
-              onChange={(e) =>
-                setPolicy((p) => ({ ...p, consensusModelCount: Number(e.target.value) || 3 }))
-              }
-              className="pipeline-number"
-            />
-          </label>
         </div>
       </section>
 

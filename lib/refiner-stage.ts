@@ -5,10 +5,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { callOpenRouterServer } from "./openrouter-server";
-import { computeConsensus } from "./consensus";
+import { runConsensusWithEscalation } from "./consensus";
 import { parseStructuredOutput } from "./parse-structured";
 import type { PipelineInput, RefinedDocs, PipelinePolicy, HumanGateQuestion } from "./pipeline-types";
-import { CONSENSUS_MODELS } from "./pipeline-types";
 
 /** Heavy doc generation: use a capable model. */
 const REFINER_MODEL = "anthropic/claude-sonnet-4";
@@ -97,7 +96,6 @@ export async function runRefinerStep(params: {
 
   if (parsed?.kind === "question") {
     const { question, options, recommendedIndex } = parsed;
-    const consensusModels = [...CONSENSUS_MODELS].slice(0, policy.consensusModelCount);
 
     const consensusPrompt = `You are answering a single clarification question for a project refinement. Choose ONE option (by letter or by repeating the option text). No explanation.
 
@@ -108,25 +106,19 @@ ${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join("\n")}
 
 Answer with only the letter (A, B, C, or D) or the exact option text.`;
 
-    const answers: string[] = [];
-    for (const model of consensusModels) {
-      try {
+    const consensus = await runConsensusWithEscalation(
+      consensusPrompt,
+      policy,
+      async (model) => {
         const ans = await callOpenRouterServer({
           model,
-          messages: [
-            { role: "user", content: consensusPrompt },
-          ],
+          messages: [{ role: "user", content: consensusPrompt }],
           max_tokens: 100,
           apiKey,
         });
-        answers.push(ans.trim());
-      } catch {
-        answers.push("");
-      }
-    }
-
-    const validAnswers = answers.filter((a) => a.length > 0);
-    const consensus = computeConsensus(validAnswers, policy.consensusThresholdPercent);
+        return ans.trim();
+      },
+    );
 
     decisionLog.push({
       stage: "refiner",

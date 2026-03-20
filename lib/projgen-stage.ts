@@ -5,10 +5,9 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { callOpenRouterServer } from "./openrouter-server";
-import { computeConsensus } from "./consensus";
+import { runConsensusWithEscalation } from "./consensus";
 import { parseStructuredOutput } from "./parse-structured";
 import type { RefinedDocs, PipelinePolicy, HumanGateQuestion, DistilledDocs } from "./pipeline-types";
-import { CONSENSUS_MODELS } from "./pipeline-types";
 
 /** Heavy doc generation: use a capable model. */
 const PROJGEN_MODEL = "anthropic/claude-sonnet-4";
@@ -86,27 +85,22 @@ export async function runProjgenStep(params: {
 
   if (parsed?.kind === "question") {
     const { question, options, recommendedIndex } = parsed;
-    const consensusModels = [...CONSENSUS_MODELS].slice(0, policy.consensusModelCount);
 
     const consensusPrompt = `Answer this project clarification with ONE option (letter or exact text). No explanation.\n\nQuestion: ${question}\n\nOptions:\n${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join("\n")}\n\nAnswer:`;
 
-    const answers: string[] = [];
-    for (const model of consensusModels) {
-      try {
+    const consensus = await runConsensusWithEscalation(
+      consensusPrompt,
+      policy,
+      async (model) => {
         const ans = await callOpenRouterServer({
           model,
           messages: [{ role: "user", content: consensusPrompt }],
           max_tokens: 100,
           apiKey,
         });
-        answers.push(ans.trim());
-      } catch {
-        answers.push("");
-      }
-    }
-
-    const validAnswers = answers.filter((a) => a.length > 0);
-    const consensus = computeConsensus(validAnswers, policy.consensusThresholdPercent);
+        return ans.trim();
+      },
+    );
 
     decisionLog.push({
       stage: "projgen",

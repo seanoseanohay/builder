@@ -43,8 +43,10 @@ export async function callOpenRouter(
   return data.text ?? "";
 }
 
-/** Cheap models used for consensus Q&A (OpenRouter ids). Matches server CONSENSUS_MODELS. */
+/** Models used for consensus Q&A (OpenRouter ids). Matches server CONSENSUS_MODELS. Priority: GPT-5.4, Kimi K2.5; escalation 5 → 10 → 20. */
 export const DEFAULT_CONSENSUS_MODELS = [
+  "openai/gpt-5.4",
+  "moonshotai/kimi-k2.5",
   "openai/gpt-4o-mini",
   "anthropic/claude-3-haiku",
   "google/gemini-flash-1.5",

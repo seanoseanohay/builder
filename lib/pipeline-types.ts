@@ -49,29 +49,47 @@ export interface HumanGateQuestion {
 }
 
 export interface PipelinePolicy {
-  /** Consensus threshold 0–100. Above = auto-pick; below = ask human. */
+  /** Consensus threshold 0–100. Above = auto-pick; below = escalate then ask human at 20. */
   consensusThresholdPercent: number;
-  /** Number of models to ask for consensus (e.g. 3 or 5). */
+  /** Initial number of models for consensus (first tier). */
   consensusModelCount: number;
-  /** Max models to try before giving up and asking human (e.g. 10 or 20). */
+  /** Max models to try before asking human. We escalate: 5 → 10 → 20; only at 20 do we ask human. */
   consensusMaxModels: number;
 }
 
 export const DEFAULT_POLICY: PipelinePolicy = {
   consensusThresholdPercent: 80,
   consensusModelCount: 3,
-  consensusMaxModels: 10,
+  consensusMaxModels: 20,
 };
 
+/** Escalation tiers: try 5 agents, then 10, then 20. Only after 20 with no consensus do we ask human. */
+export const CONSENSUS_ESCALATION_TIERS = [5, 10, 20] as const;
+
 /**
- * Cheap OpenRouter models for simple Q&A (consensus on clarification questions).
- * Pick-one-from-options doesn't need Opus/Sonnet; these keep cost low.
+ * OpenRouter models for consensus Q&A (clarification / pick-one). Priority models first (GPT-5.4, Kimi K2.5).
+ * We need at least 20 for escalation (5 → 10 → 20).
  */
 export const CONSENSUS_MODELS = [
+  "openai/gpt-5.4",
+  "moonshotai/kimi-k2.5",
   "openai/gpt-4o-mini",
   "anthropic/claude-3-haiku",
   "google/gemini-flash-1.5",
   "meta-llama/llama-3.1-8b-instruct",
+  "mistralai/mistral-7b-instruct",
+  "google/gemini-2.0-flash-001",
+  "anthropic/claude-3.5-haiku",
+  "deepseek/deepseek-chat-v3",
+  "deepseek/deepseek-chat-v3.1",
+  "qwen/qwen-2.5-7b-instruct",
+  "cohere/command-r-plus",
+  "meta-llama/llama-3.3-70b-instruct",
+  "google/gemini-flash-1.5-8b",
+  "microsoft/phi-3-mini-4k-instruct",
+  "anthropic/claude-3-haiku",
+  "google/gemini-2.5-flash",
+  "openai/gpt-4o-mini",
   "mistralai/mistral-7b-instruct",
 ] as const;
 
