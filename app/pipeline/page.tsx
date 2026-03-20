@@ -141,53 +141,55 @@ export default function PipelinePage() {
   };
 
   return (
-    <div className="min-h-screen p-6 max-w-4xl mx-auto font-sans">
-      <div className="flex items-center gap-4 mb-6">
-        <Link href="/" className="text-blue-600 hover:underline">← Wizard</Link>
-        <h1 className="text-2xl font-bold">Pipeline: Documents → Refined → Distilled → Build</h1>
-      </div>
+    <div className="container">
+      <header>
+        <div className="header-tag">{"// openrouter pipeline"}</div>
+        <div className="pipeline-header-row">
+          <Link href="/" className="pipeline-back">← Wizard</Link>
+          <h1>Pipeline</h1>
+        </div>
+        <p className="subtitle">
+          Documents → Refined → Distilled → Build. Consensus over 3–5 models; human only when below threshold.
+        </p>
+      </header>
 
-      <p className="text-gray-600 mb-4">
-        Drop in your plan, requirements, PRD, and research. The pipeline runs Refiner (consensus over 3–5 models),
-        then Projgen, then Builder (Claude Code headless). Human is only asked when consensus is below the threshold.
-      </p>
-
-      {/* OpenRouter key */}
-      <section className="mb-6 p-4 border rounded bg-gray-50">
-        <label className="block font-medium mb-2">OpenRouter API key</label>
-        <div className="flex gap-2">
+      <section className="pipeline-section">
+        <h2 className="section-title">OpenRouter API key</h2>
+        <p className="section-desc">One key for all models. Stored in this browser only.</p>
+        <div className="pipeline-key-row">
           <input
             type="password"
             value={openRouterKey}
             onChange={(e) => setOpenRouterKey(e.target.value)}
             placeholder={getStoredOpenRouterKey() ? "••••••••" : "sk-or-..."}
-            className="flex-1 border rounded px-3 py-2"
+            className="api-key-input"
           />
-          <button type="button" onClick={saveOpenRouterKey} className="px-4 py-2 bg-gray-200 rounded">
+          <button type="button" onClick={saveOpenRouterKey} className="btn btn-secondary">
             Save
           </button>
         </div>
       </section>
 
-      {/* Policy sliders */}
-      <section className="mb-6 p-4 border rounded">
-        <h2 className="font-semibold mb-2">Policy</h2>
-        <div className="space-y-2">
-          <label className="flex items-center gap-2">
-            <span className="w-48">Consensus threshold %</span>
-            <input
-              type="range"
-              min={50}
-              max={100}
-              value={policy.consensusThresholdPercent}
-              onChange={(e) =>
-                setPolicy((p) => ({ ...p, consensusThresholdPercent: Number(e.target.value) }))
-              }
-            />
-            <span>{policy.consensusThresholdPercent}%</span>
+      <section className="pipeline-section">
+        <h2 className="section-title">Policy</h2>
+        <p className="section-desc">Consensus threshold: above = auto-pick; below = ask human.</p>
+        <div className="pipeline-policy">
+          <label className="pipeline-policy-label">
+            <span>Consensus threshold</span>
+            <span className="pipeline-policy-value">{policy.consensusThresholdPercent}%</span>
           </label>
-          <label className="flex items-center gap-2">
-            <span className="w-48">Models for consensus</span>
+          <input
+            type="range"
+            min={50}
+            max={100}
+            value={policy.consensusThresholdPercent}
+            onChange={(e) =>
+              setPolicy((p) => ({ ...p, consensusThresholdPercent: Number(e.target.value) }))
+            }
+            className="pipeline-slider"
+          />
+          <label className="field-group pipeline-models-row">
+            <span className="pipeline-policy-label-inline">Models for consensus</span>
             <input
               type="number"
               min={3}
@@ -196,123 +198,129 @@ export default function PipelinePage() {
               onChange={(e) =>
                 setPolicy((p) => ({ ...p, consensusModelCount: Number(e.target.value) || 3 }))
               }
+              className="pipeline-number"
             />
           </label>
         </div>
       </section>
 
-      {/* Inputs */}
-      <section className="mb-6 grid gap-4">
-        {(["plan", "requirements", "prd", "research"] as const).map((key) => (
-          <div key={key}>
-            <label className="block font-medium mb-1 capitalize">{key}</label>
-            <textarea
-              value={input[key]}
-              onChange={(e) => setInput((i) => ({ ...i, [key]: e.target.value }))}
-              rows={6}
-              className="w-full border rounded p-2 font-mono text-sm"
-            />
-          </div>
-        ))}
+      <section className="pipeline-section">
+        <h2 className="section-title">Input documents</h2>
+        <p className="section-desc">Paste plan, requirements, PRD, and research.</p>
+        <div className="pipeline-inputs">
+          {(["plan", "requirements", "prd", "research"] as const).map((key) => (
+            <div key={key} className="field-group">
+              <label>{key}</label>
+              <textarea
+                value={input[key]}
+                onChange={(e) => setInput((i) => ({ ...i, [key]: e.target.value }))}
+                rows={5}
+              />
+            </div>
+          ))}
+        </div>
       </section>
 
       {error && (
-        <div className="mb-4 p-3 rounded bg-red-100 text-red-800">{error}</div>
+        <div className="alert alert-warning">{error}</div>
       )}
 
-      {/* Run / Continue */}
-      {!state ? (
-        <button
-          type="button"
-          onClick={startPipeline}
-          disabled={loading}
-          className="px-6 py-3 bg-blue-600 text-white rounded font-medium disabled:opacity-50"
-        >
-          {loading ? "Running…" : "Run pipeline"}
-        </button>
-      ) : state.humanGate ? (
-        <section className="mb-6 p-4 border rounded bg-amber-50">
-          <h3 className="font-semibold mb-2">Human input needed ({state.humanGate.stage})</h3>
-          <p className="mb-2">{state.humanGate.question}</p>
-          {state.humanGate.context && (
-            <p className="text-sm text-gray-600 mb-2">{state.humanGate.context}</p>
-          )}
-          <div className="flex flex-wrap gap-2 mb-2">
-            {state.humanGate.options.map((opt, i) => (
-              <button
-                key={i}
-                type="button"
-                onClick={() => setHumanAnswer(opt)}
-                className="px-3 py-1 border rounded bg-white"
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-          <input
-            type="text"
-            value={humanAnswer}
-            onChange={(e) => setHumanAnswer(e.target.value)}
-            placeholder="Or type custom answer"
-            className="w-full border rounded px-3 py-2 mb-2"
-          />
+      <div className="btn-row">
+        {!state ? (
           <button
             type="button"
-            onClick={continuePipeline}
-            disabled={loading || !humanAnswer.trim()}
-            className="px-4 py-2 bg-amber-600 text-white rounded disabled:opacity-50"
+            onClick={startPipeline}
+            disabled={loading}
+            className="btn btn-primary"
           >
-            {loading ? "Sending…" : "Submit and continue"}
+            {loading ? "Running…" : "Run pipeline"}
           </button>
-        </section>
-      ) : state.stage === "finished" ? (
-        <section className="mb-6 p-4 border rounded bg-green-50">
-          <h3 className="font-semibold text-green-800">Pipeline finished</h3>
-          {state.outputPath && (
-            <p className="text-sm text-gray-600 mt-1">
-              Builder workspace: {state.outputPath} (server path)
-            </p>
-          )}
-          {state.distilledDocs?.length ? (
+        ) : state.humanGate ? (
+          <div className="pipeline-human-gate">
+            <h3 className="section-title">Human input needed ({state.humanGate.stage})</h3>
+            <p className="pipeline-human-question">{state.humanGate.question}</p>
+            {state.humanGate.context && (
+              <p className="pipeline-human-context">{state.humanGate.context}</p>
+            )}
+            <div className="pipeline-options">
+              {state.humanGate.options.map((opt, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => setHumanAnswer(opt)}
+                  className={`btn btn-secondary pipeline-option-btn ${humanAnswer === opt ? "pipeline-option-selected" : ""}`}
+                >
+                  {opt}
+                </button>
+              ))}
+            </div>
+            <div className="field-group">
+              <input
+                type="text"
+                value={humanAnswer}
+                onChange={(e) => setHumanAnswer(e.target.value)}
+                placeholder="Or type custom answer"
+              />
+            </div>
             <button
               type="button"
-              onClick={downloadDistilledZip}
-              className="mt-2 px-4 py-2 bg-green-600 text-white rounded"
+              onClick={continuePipeline}
+              disabled={loading || !humanAnswer.trim()}
+              className="btn btn-primary"
             >
-              Download distilled docs (ZIP)
+              {loading ? "Sending…" : "Submit and continue"}
             </button>
-          ) : null}
-        </section>
-      ) : (
-        <button
-          type="button"
-          onClick={runNextStep}
-          disabled={loading}
-          className="px-6 py-3 bg-blue-600 text-white rounded font-medium disabled:opacity-50"
-        >
-          {loading ? "Running…" : "Next step"}
-        </button>
-      )}
+          </div>
+        ) : state.stage === "finished" ? (
+          <div className="pipeline-finished">
+            <h3 className="section-title">Pipeline finished</h3>
+            {state.outputPath && (
+              <p className="pipeline-output-path">Workspace: {state.outputPath}</p>
+            )}
+            {state.distilledDocs?.length ? (
+              <button
+                type="button"
+                onClick={downloadDistilledZip}
+                className="btn btn-success"
+              >
+                Download distilled docs (ZIP)
+              </button>
+            ) : null}
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={runNextStep}
+            disabled={loading}
+            className="btn btn-primary"
+          >
+            {loading ? "Running…" : "Next step"}
+          </button>
+        )}
+      </div>
 
-      {/* Progress */}
       {state && (
-        <section className="mt-6 p-4 border rounded">
-          <h3 className="font-semibold mb-2">Progress</h3>
-          <p>
-            Stage: <strong>{state.stage}</strong>
-            {state.error && <span className="text-red-600 ml-2">{state.error}</span>}
-          </p>
-          {state.decisionLog?.length ? (
-            <ul className="mt-2 text-sm space-y-1">
-              {state.decisionLog.map((d, i) => (
-                <li key={i}>
-                  [{d.stage}] {d.question && `Q: ${d.question.slice(0, 60)}…`}
-                  {d.consensusPercent != null && ` ${d.consensusPercent}%`}
-                  {d.chosenAnswer && ` → ${d.chosenAnswer.slice(0, 40)}`}
-                </li>
-              ))}
-            </ul>
-          ) : null}
+        <section className="output-card pipeline-progress">
+          <div className="output-card-header">
+            <span className="card-title">Progress</span>
+          </div>
+          <div className="output-card-body open">
+            <p className="pipeline-stage">
+              Stage: <strong>{state.stage}</strong>
+              {state.error && <span className="pipeline-error"> — {state.error}</span>}
+            </p>
+            {state.decisionLog?.length ? (
+              <ul className="pipeline-decision-log">
+                {state.decisionLog.map((d, i) => (
+                  <li key={i}>
+                    [{d.stage}] {d.question && `${d.question.slice(0, 50)}…`}
+                    {d.consensusPercent != null && ` ${d.consensusPercent}%`}
+                    {d.chosenAnswer && ` → ${d.chosenAnswer.slice(0, 35)}`}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </div>
         </section>
       )}
     </div>

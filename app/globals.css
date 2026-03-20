@@ -1057,3 +1057,210 @@ select option {
     grid-template-columns: 1fr;
   }
 }
+
+/* Pipeline page */
+.pipeline-header-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+.pipeline-back {
+  color: var(--accent);
+  font-size: 13px;
+  text-decoration: none;
+  letter-spacing: 0.05em;
+}
+
+.pipeline-back:hover {
+  text-decoration: underline;
+}
+
+.pipeline-section {
+  margin-bottom: 32px;
+  padding: 24px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.pipeline-key-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  max-width: 480px;
+}
+
+.pipeline-key-row input {
+  flex: 1;
+  min-width: 0;
+}
+
+.pipeline-policy {
+  max-width: 400px;
+}
+
+.pipeline-policy-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.pipeline-policy-label-inline {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.pipeline-policy-value {
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.pipeline-slider {
+  width: 100%;
+  height: 8px;
+  margin-bottom: 20px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: var(--border);
+  border-radius: 4px;
+  outline: none;
+}
+
+.pipeline-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+  box-shadow: 0 0 0 1px var(--border);
+}
+
+.pipeline-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--accent);
+  cursor: pointer;
+  border: 2px solid var(--surface);
+}
+
+.pipeline-models-row {
+  max-width: 120px;
+}
+
+.pipeline-models-row input {
+  min-height: auto;
+  padding: 10px 12px;
+}
+
+.pipeline-number {
+  width: 100%;
+}
+
+.pipeline-inputs {
+  display: grid;
+  gap: 20px;
+}
+
+.pipeline-human-gate {
+  padding: 24px;
+  background: rgba(255, 193, 7, 0.06);
+  border: 1px solid rgba(255, 193, 7, 0.25);
+  border-radius: 6px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.pipeline-human-question {
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+  color: var(--text);
+}
+
+.pipeline-human-context {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  line-height: 1.5;
+}
+
+.pipeline-options {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.pipeline-options .btn {
+  margin: 0;
+}
+
+.pipeline-option-btn.pipeline-option-selected {
+  border-color: var(--accent3);
+  background: rgba(0, 217, 163, 0.1);
+  color: var(--accent3);
+}
+
+.pipeline-finished {
+  padding: 24px;
+  background: rgba(0, 217, 163, 0.06);
+  border: 1px solid rgba(0, 217, 163, 0.2);
+  border-radius: 6px;
+  width: 100%;
+  max-width: 560px;
+}
+
+.pipeline-finished .section-title {
+  color: var(--accent3);
+  margin-bottom: 12px;
+}
+
+.pipeline-output-path {
+  font-size: 11px;
+  color: var(--muted);
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.pipeline-progress .output-card-body {
+  padding: 16px;
+}
+
+.pipeline-stage {
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.pipeline-error {
+  color: var(--accent2);
+  font-weight: 500;
+}
+
+.pipeline-decision-log {
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.pipeline-decision-log li {
+  padding: 4px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.pipeline-decision-log li:last-child {
+  border-bottom: none;
+}
