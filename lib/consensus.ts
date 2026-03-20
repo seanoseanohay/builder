@@ -178,7 +178,7 @@ export function buildOptionBreakdown(
 ): { optionLabel: string; optionText: string; percent: number }[] {
   const total = result.totalCount || 1;
   return options.map((opt, i) => {
-    const letter = String.fromCharCode(65 + i);
+    const letter = (opt.match(/^([A-F])\./i)?.[1] ?? String.fromCharCode(65 + i)).toUpperCase();
     const keyLetter = letter.toLowerCase();
     const optionText = opt.replace(/^[A-Z]\.\s*/i, "").trim() || opt;
     const keyText = normalizeOption(optionText);
