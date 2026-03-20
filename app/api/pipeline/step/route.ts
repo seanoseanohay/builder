@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { runRefinerStep } from "@/lib/refiner-stage";
 import { runProjgenStep } from "@/lib/projgen-stage";
 import { runBuilderStage, listWorkspaceFiles } from "@/lib/builder-stage";
-import { getSectionOptions, runConsensusForSection, buildSdsHumanGateBreakdown } from "@/lib/sds-stage";
+import {
+  getSectionOptions,
+  runConsensusForSection,
+  buildSdsHumanGateBreakdown,
+  optionIndexForLetter,
+} from "@/lib/sds-stage";
 import { buildResearchDoc, buildPRDContext } from "@/lib/pipeline-wizard";
 import { mergeResearchSections } from "@/lib/research";
 import { CORE_RESEARCH_SECTIONS } from "@/lib/research";
@@ -151,8 +156,7 @@ export async function POST(request: NextRequest) {
         let chosenIndex = optNames.findIndex((n) => n === trimmed || trimmed.endsWith(n));
         if (chosenIndex < 0) {
           const letter = trimmed.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1);
-          if (letter) chosenIndex = letter.charCodeAt(0) - 65;
-          chosenIndex = Math.max(0, Math.min(chosenIndex, options.length - 1));
+          if (letter) chosenIndex = optionIndexForLetter(letter, options);
         }
         const newDecision: SDSDecision = {
           sectionId: section.id,
@@ -191,7 +195,7 @@ export async function POST(request: NextRequest) {
       ];
 
       if (consensus.needsHuman && consensus.consensusResult) {
-        const optLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o.name}`);
+        const optLabels = options.map((o) => o.name);
         const optionBreakdown = await buildSdsHumanGateBreakdown(
           options,
           consensus.consensusResult,

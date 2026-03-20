@@ -122,9 +122,19 @@ export async function runConsensusWithEscalation(
   return computeConsensus(valid, policy.consensusThresholdPercent);
 }
 
+/** Letters that appear as option keys (e.g. A. …, F. Other). */
+export function validLettersFromOptionLabels(optionLabels: string[]): string[] {
+  const letters: string[] = [];
+  for (const label of optionLabels) {
+    const m = label.match(/^([A-Z])\./i);
+    if (m?.[1]) letters.push(m[1].toUpperCase());
+  }
+  return letters.length > 0 ? letters : ["A", "B", "C", "D", "E", "F"];
+}
+
 /**
- * Voter-only consensus: options are already set (e.g. A–E + F=Other). First model is the proposer (not used here).
- * Voters = models 1..20. Escalation: 4, then 8, 12, 16, 20. Normalize answers to letter A–F.
+ * Voter-only consensus: options are already set (e.g. A–D + F=Other). First model is the proposer (not used here).
+ * Voters = models 1..20. Escalation: 4, then 8, 12, 16, 20. Valid letters derived from option labels.
  */
 export async function runConsensusVotersOnly(
   optionLabels: string[],
@@ -132,23 +142,18 @@ export async function runConsensusVotersOnly(
   callModel: (model: string) => Promise<string>,
 ): Promise<ConsensusResult> {
   const voterModels = CONSENSUS_MODELS.slice(1);
-  const prompt = `Choose ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
-
-Options:
-${optionLabels.join("\n")}
-
-Answer:`;
-  const validLetters = ["A", "B", "C", "D", "E", "F"];
+  const validLetters = validLettersFromOptionLabels(optionLabels);
+  const fallbackLetter = validLetters[0] ?? "A";
   const answers: string[] = [];
   for (const target of CONSENSUS_VOTER_TIERS) {
     while (answers.length < target && answers.length < voterModels.length) {
       const model = voterModels[answers.length];
       try {
         const ans = await callModel(model);
-        const letter = ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
-        answers.push(validLetters.includes(letter) ? letter : "A");
+        const letter = ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || fallbackLetter;
+        answers.push(validLetters.includes(letter) ? letter : fallbackLetter);
       } catch {
-        answers.push("A");
+        answers.push(fallbackLetter);
       }
     }
     const valid = answers.filter((a) => a.length > 0);

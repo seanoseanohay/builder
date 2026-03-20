@@ -97,6 +97,8 @@ export async function runProjgenStep(params: {
       async (model) => {
         const prompt = `Answer this project clarification with ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
 
+Choose the option that best fits the general architecture needed—not the most specific or over-tailored choice.
+
 Question: ${question}
 
 Options:

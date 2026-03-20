@@ -87,7 +87,14 @@ export default function Pipeline() {
         },
         decisionLog: [],
       };
-      await runStep(initialState);
+      let current: PipelineState = initialState;
+      while (current) {
+        const data = await runStep(current);
+        const nextState = data.state as PipelineState;
+        setState(nextState);
+        if (nextState.humanGate || nextState.stage === "finished" || nextState.error) break;
+        current = nextState;
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -99,10 +106,24 @@ export default function Pipeline() {
     if (!state) return;
     setError(null);
     setLoading(true);
+    setHumanAnswer("");
     try {
-      await runStep(state, state.humanGate ? humanAnswer : undefined);
-      setHumanAnswer("");
-      if (state.humanGate) setHumanAnswer("");
+      let current: PipelineState = state;
+      const data = await runStep(current, current.humanGate ? humanAnswer : undefined);
+      let nextState = data.state as PipelineState;
+      setState(nextState);
+      if (nextState.humanGate || nextState.stage === "finished" || nextState.error) {
+        setLoading(false);
+        return;
+      }
+      current = nextState;
+      while (current) {
+        const nextData = await runStep(current);
+        nextState = nextData.state as PipelineState;
+        setState(nextState);
+        if (nextState.humanGate || nextState.stage === "finished" || nextState.error) break;
+        current = nextState;
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -159,7 +180,7 @@ export default function Pipeline() {
         <div className="header-tag">{"// cursor + claude code workflow"}</div>
         <h1>Project Kickstarter</h1>
         <p className="subtitle">
-          Brief → Research → Layers → SDS (consensus) → PRD → Plan → Refined → Distilled → Build. Consensus escalates 5 → 10 → 20 agents; human only if still below threshold at 20.
+          Brief → Research → Layers → SDS (proposer + voter consensus) → PRD → Plan → Refined → Distilled → Build. Voters escalate 4 → 8 → 12 → 16 → 20; human only if still below threshold at 20.
         </p>
       </header>
 
@@ -183,7 +204,7 @@ export default function Pipeline() {
       <section className="pipeline-section">
         <h2 className="section-title">Policy</h2>
         <p className="section-desc">
-          Consensus threshold: above = auto-pick. Below threshold we escalate: 5 → 10 → 20 agents; only if still below at 20 do we ask human.
+          Consensus threshold: above = auto-pick. Below threshold we add voters: 4 → 8 → 12 → 16 → 20; only if still below at 20 do we ask human.
         </p>
         <div className="pipeline-policy">
           <label className="pipeline-policy-label">
@@ -366,9 +387,9 @@ export default function Pipeline() {
             type="button"
             onClick={runNextStep}
             disabled={loading}
-            className="btn btn-primary"
+            className="btn btn-secondary"
           >
-            {loading ? "Running…" : "Next step"}
+            {loading ? "Running…" : "Continue"}
           </button>
         )}
       </div>
