@@ -263,9 +263,18 @@ Rules:
           apiKey: openRouterApiKey,
         })
       : await callClaudeJson(apiKey!, systemPrompt, userPrompt);
-    const parsed = safeParseJSON<ResearchResponse>(
-      raw.replace(/```json|```/gi, "").trim(),
-    );
+    let parsed: ResearchResponse;
+    try {
+      parsed = safeParseJSON<ResearchResponse>(
+        raw.replace(/```json|```/gi, "").trim(),
+      );
+    } catch {
+      parsed = {
+        partnerResearch: { summary: "Research response was malformed; proceeding with minimal context. You can retry research later." },
+        inferred: {},
+        discoveredSections: [],
+      };
+    }
     const actualSources = [
       ...websiteDocs.map((doc) => ({
         type: "website" as const,
