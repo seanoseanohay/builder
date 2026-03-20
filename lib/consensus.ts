@@ -75,8 +75,8 @@ export function computeConsensus(
   const consensusPercent = Math.round((best.count / answers.length) * 100);
   const needsHuman = consensusPercent < thresholdPercent;
   const answerCounts: Record<string, number> = {};
-  for (const [norm, { count }] of counts.entries()) {
-    answerCounts[norm] = count;
+  for (const entry of Array.from(counts.entries())) {
+    answerCounts[entry[0]] = entry[1].count;
   }
 
   return {
