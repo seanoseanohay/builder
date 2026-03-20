@@ -5,7 +5,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { callOpenRouterServer } from "./openrouter-server";
-import { runConsensusWithEscalation } from "./consensus";
+import { runConsensusVotersOnly } from "./consensus";
 import { buildHumanGateOptionBreakdown } from "./human-gate-options";
 import { parseStructuredOutput } from "./parse-structured";
 import type { PipelineInput, RefinedDocs, PipelinePolicy, HumanGateQuestion } from "./pipeline-types";
@@ -97,27 +97,29 @@ export async function runRefinerStep(params: {
 
   if (parsed?.kind === "question") {
     const { question, options, recommendedIndex } = parsed;
+    const optionLabels = [
+      ...options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`),
+      "F. Other",
+    ];
 
-    const consensusPrompt = `You are answering a single clarification question for a project refinement. Choose ONE option (by letter or by repeating the option text). No explanation.
+    const consensus = await runConsensusVotersOnly(
+      optionLabels,
+      policy,
+      async (model) => {
+        const prompt = `Answer this clarification with ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
 
 Question: ${question}
 
 Options:
-${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join("\n")}
+${optionLabels.join("\n")}
 
-Answer with only the letter (A, B, C, or D) or the exact option text.`;
-
-    const consensus = await runConsensusWithEscalation(
-      consensusPrompt,
-      policy,
-      async (model) => {
-        const ans = await callOpenRouterServer({
+Answer:`;
+        return callOpenRouterServer({
           model,
-          messages: [{ role: "user", content: consensusPrompt }],
+          messages: [{ role: "user", content: prompt }],
           max_tokens: 100,
           apiKey,
         });
-        return ans.trim();
       },
     );
 
@@ -130,7 +132,6 @@ Answer with only the letter (A, B, C, or D) or the exact option text.`;
     });
 
     if (consensus.needsHuman) {
-      const optionLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`);
       const optionBreakdown = await buildHumanGateOptionBreakdown(
         optionLabels,
         consensus,
@@ -142,7 +143,7 @@ Answer with only the letter (A, B, C, or D) or the exact option text.`;
           stage: "refiner",
           question,
           options: optionLabels,
-          recommendedIndex,
+          recommendedIndex: Math.min(recommendedIndex, optionLabels.length - 1),
           context: `No consensus after 20 agents (${consensus.consensusPercent}% best; threshold: ${policy.consensusThresholdPercent}%).`,
           optionBreakdown,
         },
@@ -152,7 +153,9 @@ Answer with only the letter (A, B, C, or D) or the exact option text.`;
     }
 
     // Consensus ok: return updated history with chosen answer so caller can run next step
-    history.push({ role: "user", content: `User's answer (consensus): ${consensus.chosenAnswer}` });
+    const chosenLetter = consensus.chosenAnswer.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
+    const chosenLabel = chosenLetter === "F" ? "F. Other" : optionLabels[chosenLetter.charCodeAt(0) - 65] ?? consensus.chosenAnswer;
+    history.push({ role: "user", content: `User's answer (consensus): ${chosenLabel}` });
     return {
       done: false,
       conversationHistory: history,

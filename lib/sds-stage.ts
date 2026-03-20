@@ -2,21 +2,21 @@
  * SDS stage: get options for one section (OpenRouter), then consensus on which option.
  * Server-only.
  */
+import { CONSENSUS_MODELS } from "./pipeline-types";
 import { callOpenRouterServer } from "./openrouter-server";
-import { runConsensusWithEscalation } from "./consensus";
+import { runConsensusVotersOnly } from "./consensus";
 import { buildHumanGateOptionBreakdown } from "./human-gate-options";
-import { safeParseJSON } from "./json";
 import { SECTION_PROMPTS } from "./sections";
 import type { SectionId } from "./sections";
 import type { PipelinePolicy, PipelineResearchResult, SDSDecision } from "./pipeline-types";
-
-/** Cheaper model for per-section options; Sonnet reserved for PRD/plan/refiner/projgen. */
-const SDS_MODEL = "anthropic/claude-3-haiku";
 
 interface SDSData {
   recommendation: string;
   options: Array<{ name: string; verdict: string; reason: string }>;
 }
+
+/** First model (proposer) suggests options A–E plus F=Other. */
+const PROPOSER_MODEL = CONSENSUS_MODELS[0];
 
 function buildSDSContext(
   intake: { company: string; website: string; projectName: string; problemStatement: string; functionalReqs: string; languages?: string },
@@ -41,6 +41,30 @@ Perform analysis for the ${sectionLabel.toUpperCase()} layer. Why this layer mat
 `.trim();
 }
 
+/** Parse proposer response into 6 options: A. ... B. ... C. ... D. ... E. ... F. Other */
+function parseProposerOptions(raw: string): string[] {
+  const lines = raw
+    .replace(/```[\s\S]*?```/g, "")
+    .split(/\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const options: string[] = [];
+  for (let i = 0; i <= 5; i++) {
+    const label = i === 5 ? "F" : String.fromCharCode(65 + i);
+    const re = new RegExp(`^${label}\\.\\s*(.+)$`, "i");
+    const line = lines.find((l) => re.test(l));
+    if (line) {
+      const m = line.match(re);
+      options.push(`${label}. ${(m?.[1] ?? line).trim()}`);
+    } else if (i === 5) {
+      options.push("F. Other");
+    } else {
+      options.push(`${label}. Option ${label}`);
+    }
+  }
+  return options;
+}
+
 export async function getSectionOptions(
   section: { id: string; label: string; sub: string; reason: string },
   intake: { company: string; website: string; projectName: string; problemStatement: string; functionalReqs: string; languages?: string },
@@ -48,33 +72,38 @@ export async function getSectionOptions(
   apiKey: string | null | undefined,
 ): Promise<SDSData> {
   const basePrompt = SECTION_PROMPTS[section.id as SectionId] ||
-    `Perform a SYSTEM DESIGN analysis for the ${section.label} layer. Evaluate realistic implementation options. Use technical criteria: data flow, latency, throughput, failure modes, consistency, observability, security, scale.`;
+    `Perform a SYSTEM DESIGN analysis for the ${section.label} layer. Propose 5 concrete implementation options.`;
   const context = buildSDSContext(intake, researchResult, section.label, section.reason);
-  const sys = "You are a senior system architect. Return ONLY valid JSON — no markdown, no extra text.";
   const prompt = `${basePrompt}
 
 Project context:
 ${context}
 
-Return this exact JSON:
-{
-  "recommendation": "2-4 sentences defending the chosen option.",
-  "options": [
-    { "name": "Option name", "verdict": "recommended" | "viable" | "avoid", "reason": "1-2 sentences." }
-  ]
-}
-Rules: 3-5 options, exactly one "recommended". JSON only.`;
+Reply with exactly 6 lines. Lines must be:
+A. <first option name>
+B. <second option name>
+C. <third option name>
+D. <fourth option name>
+E. <fifth option name>
+F. Other
+
+No other text. One option per line.`;
 
   const raw = await callOpenRouterServer({
-    model: SDS_MODEL,
-    messages: [{ role: "system", content: sys }, { role: "user", content: prompt }],
-    max_tokens: 2048,
+    model: PROPOSER_MODEL,
+    messages: [{ role: "user", content: prompt }],
+    max_tokens: 512,
     apiKey,
   });
-  const parsed = safeParseJSON<SDSData>(raw.replace(/```json|```/gi, "").trim());
+  const optionStrings = parseProposerOptions(raw);
+  const options = optionStrings.map((name, i) => ({
+    name,
+    verdict: "viable" as const,
+    reason: "",
+  }));
   return {
-    recommendation: parsed.recommendation || "",
-    options: Array.isArray(parsed.options) ? parsed.options : [],
+    recommendation: "",
+    options,
   };
 }
 
@@ -96,29 +125,27 @@ export async function runConsensusForSection(
   if (options.length === 0) {
     return { chosenIndex: 0, chosenName: "", consensusPercent: 0, needsHuman: true };
   }
-  const optionList = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o.name}`).join("\n");
-  const consensusPrompt = `For the ${sectionLabel} layer, choose ONE option (reply with only the letter A, B, C, D, or E). No explanation.
-
-Options:
-${optionList}
-
-Answer:`;
-
-  const consensus = await runConsensusWithEscalation(
-    consensusPrompt,
+  const optionLabels = options.map((o) => o.name);
+  const consensus = await runConsensusVotersOnly(
+    optionLabels,
     policy,
     async (model) => {
-      const ans = await callOpenRouterServer({
+      const prompt = `For the ${sectionLabel} layer, choose ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
+
+Options:
+${optionLabels.join("\n")}
+
+Answer:`;
+      return callOpenRouterServer({
         model,
-        messages: [{ role: "user", content: consensusPrompt }],
+        messages: [{ role: "user", content: prompt }],
         max_tokens: 50,
         apiKey,
       });
-      return ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
     },
   );
   const letter = consensus.chosenAnswer.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
-  const index = letter.charCodeAt(0) - 65;
+  const index = letter === "F" ? 5 : Math.min(letter.charCodeAt(0) - 65, options.length - 1);
   const chosenIndex = Math.max(0, Math.min(index, options.length - 1));
   const chosenName = options[chosenIndex]?.name ?? options[0].name;
   return {

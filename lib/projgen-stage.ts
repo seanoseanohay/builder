@@ -5,7 +5,7 @@
 import { readFileSync } from "fs";
 import { join } from "path";
 import { callOpenRouterServer } from "./openrouter-server";
-import { runConsensusWithEscalation } from "./consensus";
+import { runConsensusVotersOnly } from "./consensus";
 import { buildHumanGateOptionBreakdown } from "./human-gate-options";
 import { parseStructuredOutput } from "./parse-structured";
 import type { RefinedDocs, PipelinePolicy, HumanGateQuestion, DistilledDocs } from "./pipeline-types";
@@ -86,20 +86,29 @@ export async function runProjgenStep(params: {
 
   if (parsed?.kind === "question") {
     const { question, options, recommendedIndex } = parsed;
+    const optionLabels = [
+      ...options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`),
+      "F. Other",
+    ];
 
-    const consensusPrompt = `Answer this project clarification with ONE option (letter or exact text). No explanation.\n\nQuestion: ${question}\n\nOptions:\n${options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`).join("\n")}\n\nAnswer:`;
-
-    const consensus = await runConsensusWithEscalation(
-      consensusPrompt,
+    const consensus = await runConsensusVotersOnly(
+      optionLabels,
       policy,
       async (model) => {
-        const ans = await callOpenRouterServer({
+        const prompt = `Answer this project clarification with ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
+
+Question: ${question}
+
+Options:
+${optionLabels.join("\n")}
+
+Answer:`;
+        return callOpenRouterServer({
           model,
-          messages: [{ role: "user", content: consensusPrompt }],
+          messages: [{ role: "user", content: prompt }],
           max_tokens: 100,
           apiKey,
         });
-        return ans.trim();
       },
     );
 
@@ -112,7 +121,6 @@ export async function runProjgenStep(params: {
     });
 
     if (consensus.needsHuman) {
-      const optionLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`);
       const optionBreakdown = await buildHumanGateOptionBreakdown(
         optionLabels,
         consensus,
@@ -124,7 +132,7 @@ export async function runProjgenStep(params: {
           stage: "projgen",
           question,
           options: optionLabels,
-          recommendedIndex,
+          recommendedIndex: Math.min(recommendedIndex, optionLabels.length - 1),
           context: `No consensus after 20 agents (${consensus.consensusPercent}% best; threshold: ${policy.consensusThresholdPercent}%).`,
           optionBreakdown,
         },
@@ -133,7 +141,9 @@ export async function runProjgenStep(params: {
       };
     }
 
-    history.push({ role: "user", content: `User's answer (consensus): ${consensus.chosenAnswer}` });
+    const chosenLetter = consensus.chosenAnswer.toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
+    const chosenLabel = chosenLetter === "F" ? "F. Other" : optionLabels[chosenLetter.charCodeAt(0) - 65] ?? consensus.chosenAnswer;
+    history.push({ role: "user", content: `User's answer (consensus): ${chosenLabel}` });
     return {
       done: false,
       conversationHistory: history,

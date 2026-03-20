@@ -77,6 +77,9 @@ export const DEFAULT_POLICY: PipelinePolicy = {
 /** Escalation tiers: try 5 agents, then 10, then 20. Only after 20 with no consensus do we ask human. */
 export const CONSENSUS_ESCALATION_TIERS = [5, 10, 20] as const;
 
+/** Voter escalation: first 3–4 vote, then more until 20. Index 0 = proposer (options A–E + F=Other); indices 1+ = voters. */
+export const CONSENSUS_VOTER_TIERS = [4, 8, 12, 16, 20] as const;
+
 /**
  * OpenRouter models for consensus Q&A (clarification / pick-one). Priority models first (GPT-5.4, Kimi K2.5).
  * We need at least 20 for escalation (5 → 10 → 20).
@@ -102,6 +105,7 @@ export const CONSENSUS_MODELS = [
   "google/gemini-2.5-flash",
   "openai/gpt-4o-mini",
   "mistralai/mistral-7b-instruct",
+  "anthropic/claude-3-haiku",
 ] as const;
 
 export type PipelineStageName =

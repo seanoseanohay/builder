@@ -6,6 +6,7 @@
 import {
   CONSENSUS_ESCALATION_TIERS,
   CONSENSUS_MODELS,
+  CONSENSUS_VOTER_TIERS,
   type PipelinePolicy,
 } from "./pipeline-types";
 
@@ -117,6 +118,44 @@ export async function runConsensusWithEscalation(
     if (answers.length >= 20) return result;
   }
 
+  const valid = answers.filter((a) => a.length > 0);
+  return computeConsensus(valid, policy.consensusThresholdPercent);
+}
+
+/**
+ * Voter-only consensus: options are already set (e.g. A–E + F=Other). First model is the proposer (not used here).
+ * Voters = models 1..20. Escalation: 4, then 8, 12, 16, 20. Normalize answers to letter A–F.
+ */
+export async function runConsensusVotersOnly(
+  optionLabels: string[],
+  policy: PipelinePolicy,
+  callModel: (model: string) => Promise<string>,
+): Promise<ConsensusResult> {
+  const voterModels = CONSENSUS_MODELS.slice(1);
+  const prompt = `Choose ONE option (reply with only the letter A, B, C, D, E, or F). No explanation.
+
+Options:
+${optionLabels.join("\n")}
+
+Answer:`;
+  const validLetters = ["A", "B", "C", "D", "E", "F"];
+  const answers: string[] = [];
+  for (const target of CONSENSUS_VOTER_TIERS) {
+    while (answers.length < target && answers.length < voterModels.length) {
+      const model = voterModels[answers.length];
+      try {
+        const ans = await callModel(model);
+        const letter = ans.trim().toUpperCase().replace(/[^A-Z]/g, "").slice(0, 1) || "A";
+        answers.push(validLetters.includes(letter) ? letter : "A");
+      } catch {
+        answers.push("A");
+      }
+    }
+    const valid = answers.filter((a) => a.length > 0);
+    const result = computeConsensus(valid, policy.consensusThresholdPercent);
+    if (!result.needsHuman) return result;
+    if (answers.length >= 20) return result;
+  }
   const valid = answers.filter((a) => a.length > 0);
   return computeConsensus(valid, policy.consensusThresholdPercent);
 }
