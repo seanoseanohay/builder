@@ -4,12 +4,14 @@
  */
 import { callOpenRouterServer } from "./openrouter-server";
 import { runConsensusWithEscalation } from "./consensus";
+import { buildHumanGateOptionBreakdown } from "./human-gate-options";
 import { safeParseJSON } from "./json";
 import { SECTION_PROMPTS } from "./sections";
 import type { SectionId } from "./sections";
 import type { PipelinePolicy, PipelineResearchResult, SDSDecision } from "./pipeline-types";
 
-const SDS_MODEL = "anthropic/claude-sonnet-4";
+/** Cheaper model for per-section options; Sonnet reserved for PRD/plan/refiner/projgen. */
+const SDS_MODEL = "anthropic/claude-3-haiku";
 
 interface SDSData {
   recommendation: string;
@@ -76,12 +78,21 @@ Rules: 3-5 options, exactly one "recommended". JSON only.`;
   };
 }
 
+export interface RunConsensusForSectionResult {
+  chosenIndex: number;
+  chosenName: string;
+  consensusPercent: number;
+  needsHuman: boolean;
+  /** Full consensus result for building option breakdown when needsHuman. */
+  consensusResult?: import("./consensus").ConsensusResult;
+}
+
 export async function runConsensusForSection(
   options: Array<{ name: string }>,
   sectionLabel: string,
   policy: PipelinePolicy,
   apiKey: string | null | undefined,
-): Promise<{ chosenIndex: number; chosenName: string; consensusPercent: number; needsHuman: boolean }> {
+): Promise<RunConsensusForSectionResult> {
   if (options.length === 0) {
     return { chosenIndex: 0, chosenName: "", consensusPercent: 0, needsHuman: true };
   }
@@ -115,5 +126,22 @@ Answer:`;
     chosenName,
     consensusPercent: consensus.consensusPercent,
     needsHuman: consensus.needsHuman,
+    consensusResult: consensus,
   };
+}
+
+/** Build option breakdown with percent; defense from option.reason, con from LLM. */
+export async function buildSdsHumanGateBreakdown(
+  options: Array<{ name: string; reason: string }>,
+  consensusResult: import("./consensus").ConsensusResult,
+  apiKey: string | null | undefined,
+): Promise<import("./pipeline-types").HumanGateOptionBreakdown[]> {
+  const optLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o.name}`);
+  const existingDefenses = options.map((o) => o.reason);
+  return buildHumanGateOptionBreakdown(
+    optLabels,
+    consensusResult,
+    apiKey,
+    existingDefenses,
+  );
 }

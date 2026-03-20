@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { runRefinerStep } from "@/lib/refiner-stage";
 import { runProjgenStep } from "@/lib/projgen-stage";
 import { runBuilderStage, listWorkspaceFiles } from "@/lib/builder-stage";
-import { getSectionOptions, runConsensusForSection } from "@/lib/sds-stage";
+import { getSectionOptions, runConsensusForSection, buildSdsHumanGateBreakdown } from "@/lib/sds-stage";
 import { buildResearchDoc, buildPRDContext } from "@/lib/pipeline-wizard";
 import { mergeResearchSections } from "@/lib/research";
 import { CORE_RESEARCH_SECTIONS } from "@/lib/research";
@@ -190,8 +190,13 @@ export async function POST(request: NextRequest) {
         },
       ];
 
-      if (consensus.needsHuman) {
+      if (consensus.needsHuman && consensus.consensusResult) {
         const optLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o.name}`);
+        const optionBreakdown = await buildSdsHumanGateBreakdown(
+          options,
+          consensus.consensusResult,
+          apiKey,
+        );
         return NextResponse.json({
           state: {
             ...state,
@@ -200,7 +205,8 @@ export async function POST(request: NextRequest) {
               question: `Which option for ${section.label}?`,
               options: optLabels,
               recommendedIndex: Math.max(0, options.findIndex((o) => o.verdict === "recommended")),
-              context: `Consensus: ${consensus.consensusPercent}% (threshold: ${policy.consensusThresholdPercent}%).`,
+              context: `No consensus after 20 agents (${consensus.consensusPercent}% best; threshold: ${policy.consensusThresholdPercent}%).`,
+              optionBreakdown,
             },
             humanGateSectionId: section.id,
           },

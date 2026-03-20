@@ -18,6 +18,10 @@ export interface ConsensusResult {
   rawAnswers: string[];
   /** True when consensus is below threshold → need human (only after trying 20 agents). */
   needsHuman: boolean;
+  /** Normalized answer -> count, for building per-option consensus %. */
+  answerCounts: Record<string, number>;
+  /** Total number of answers (for percent calculation). */
+  totalCount: number;
 }
 
 /** Normalize an answer for comparison: trim, lowercase, collapse whitespace. */
@@ -43,6 +47,8 @@ export function computeConsensus(
       chosenAnswer: "",
       rawAnswers: answers,
       needsHuman: true,
+      answerCounts: {},
+      totalCount: 0,
     };
   }
 
@@ -68,12 +74,18 @@ export function computeConsensus(
 
   const consensusPercent = Math.round((best.count / answers.length) * 100);
   const needsHuman = consensusPercent < thresholdPercent;
+  const answerCounts: Record<string, number> = {};
+  for (const [norm, { count }] of counts.entries()) {
+    answerCounts[norm] = count;
+  }
 
   return {
     consensusPercent,
     chosenAnswer: best.canonical,
     rawAnswers: answers,
     needsHuman,
+    answerCounts,
+    totalCount: answers.length,
   };
 }
 
@@ -107,4 +119,34 @@ export async function runConsensusWithEscalation(
 
   const valid = answers.filter((a) => a.length > 0);
   return computeConsensus(valid, policy.consensusThresholdPercent);
+}
+
+function normalizeOption(s: string): string {
+  return s
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+/**
+ * Build per-option breakdown (label, text, percent) from options and consensus result.
+ * Options are expected as "A. OptionName", "B. OptionName", etc.
+ * Counts are attributed by letter (a, b, c) and by normalized option text so both letter and full-text answers are counted.
+ */
+export function buildOptionBreakdown(
+  options: string[],
+  result: ConsensusResult,
+): { optionLabel: string; optionText: string; percent: number }[] {
+  const total = result.totalCount || 1;
+  return options.map((opt, i) => {
+    const letter = String.fromCharCode(65 + i);
+    const keyLetter = letter.toLowerCase();
+    const optionText = opt.replace(/^[A-Z]\.\s*/i, "").trim() || opt;
+    const keyText = normalizeOption(optionText);
+    const countLetter = result.answerCounts?.[keyLetter] ?? 0;
+    const countText = keyText !== keyLetter ? (result.answerCounts?.[keyText] ?? 0) : 0;
+    const count = countLetter + countText;
+    const percent = Math.round((count / total) * 100);
+    return { optionLabel: letter, optionText, percent };
+  });
 }

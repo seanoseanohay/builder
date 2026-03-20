@@ -1214,6 +1214,55 @@ select option {
   color: var(--accent3);
 }
 
+.pipeline-option-breakdown {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.pipeline-option-card {
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.pipeline-option-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.pipeline-option-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pipeline-option-percent {
+  font-size: 13px;
+  color: var(--muted);
+}
+
+.pipeline-option-text {
+  font-size: 14px;
+  margin: 0 0 10px;
+  line-height: 1.5;
+  color: var(--text);
+}
+
+.pipeline-option-defense,
+.pipeline-option-con {
+  font-size: 13px;
+  margin: 6px 0;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.pipeline-option-card .pipeline-option-btn {
+  margin-top: 10px;
+}
+
 .pipeline-finished {
   padding: 24px;
   background: rgba(0, 217, 163, 0.06);

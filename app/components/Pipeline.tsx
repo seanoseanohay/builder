@@ -285,18 +285,49 @@ export default function Pipeline() {
             {state.humanGate.context && (
               <p className="pipeline-human-context">{state.humanGate.context}</p>
             )}
-            <div className="pipeline-options">
-              {state.humanGate.options.map((opt, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => setHumanAnswer(opt)}
-                  className={`btn btn-secondary pipeline-option-btn ${humanAnswer === opt ? "pipeline-option-selected" : ""}`}
-                >
-                  {opt}
-                </button>
-              ))}
-            </div>
+            {state.humanGate.optionBreakdown && state.humanGate.optionBreakdown.length > 0 ? (
+              <div className="pipeline-option-breakdown">
+                {state.humanGate.optionBreakdown.map((ob, i) => (
+                  <div key={i} className="pipeline-option-card">
+                    <div className="pipeline-option-card-header">
+                      <span className="pipeline-option-label">{ob.optionLabel}.</span>
+                      <span className="pipeline-option-percent">{ob.percent}% consensus</span>
+                    </div>
+                    <p className="pipeline-option-text">{ob.optionText}</p>
+                    {ob.defense && (
+                      <p className="pipeline-option-defense">
+                        <strong>Defense:</strong> {ob.defense}
+                      </p>
+                    )}
+                    {ob.con && (
+                      <p className="pipeline-option-con">
+                        <strong>Con:</strong> {ob.con}
+                      </p>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setHumanAnswer(state.humanGate!.options[i] ?? ob.optionText)}
+                      className={`btn btn-secondary pipeline-option-btn ${humanAnswer === state.humanGate!.options[i] ? "pipeline-option-selected" : ""}`}
+                    >
+                      Choose {ob.optionLabel}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="pipeline-options">
+                {state.humanGate.options.map((opt, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setHumanAnswer(opt)}
+                    className={`btn btn-secondary pipeline-option-btn ${humanAnswer === opt ? "pipeline-option-selected" : ""}`}
+                  >
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            )}
             <div className="field-group">
               <input
                 type="text"

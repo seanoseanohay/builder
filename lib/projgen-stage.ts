@@ -6,11 +6,12 @@ import { readFileSync } from "fs";
 import { join } from "path";
 import { callOpenRouterServer } from "./openrouter-server";
 import { runConsensusWithEscalation } from "./consensus";
+import { buildHumanGateOptionBreakdown } from "./human-gate-options";
 import { parseStructuredOutput } from "./parse-structured";
 import type { RefinedDocs, PipelinePolicy, HumanGateQuestion, DistilledDocs } from "./pipeline-types";
 
-/** Heavy doc generation: use a capable model. */
-const PROJGEN_MODEL = "anthropic/claude-sonnet-4";
+/** Heavy doc generation: use GPT-5.4. */
+const PROJGEN_MODEL = "openai/gpt-5.4";
 
 function loadPrompt(name: string): string {
   try {
@@ -111,14 +112,21 @@ export async function runProjgenStep(params: {
     });
 
     if (consensus.needsHuman) {
+      const optionLabels = options.map((o, i) => `${String.fromCharCode(65 + i)}. ${o}`);
+      const optionBreakdown = await buildHumanGateOptionBreakdown(
+        optionLabels,
+        consensus,
+        apiKey,
+      );
       return {
         done: false,
         humanGate: {
           stage: "projgen",
           question,
-          options,
+          options: optionLabels,
           recommendedIndex,
-          context: `Consensus: ${consensus.consensusPercent}% (threshold: ${policy.consensusThresholdPercent}%).`,
+          context: `No consensus after 20 agents (${consensus.consensusPercent}% best; threshold: ${policy.consensusThresholdPercent}%).`,
+          optionBreakdown,
         },
         conversationHistory: history,
         decisionLog,

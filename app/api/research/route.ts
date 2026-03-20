@@ -16,7 +16,8 @@ import type {
 } from "@/lib/types";
 
 const ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages";
-const MODEL = "claude-sonnet-4-20250514";
+/** Use Haiku for research (cheap); Sonnet reserved for heavy doc steps. */
+const MODEL = "claude-3-5-haiku-20241022";
 const MAX_TOKENS = 4000;
 
 interface ResearchResponse {
@@ -253,7 +254,7 @@ Rules:
 
     const raw = openRouterApiKey
       ? await callOpenRouterServer({
-          model: "anthropic/claude-sonnet-4",
+          model: "anthropic/claude-3-haiku",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: userPrompt },

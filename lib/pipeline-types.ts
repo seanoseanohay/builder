@@ -40,12 +40,23 @@ export interface RepoDoc {
 /** Projgen output: repo docs (AGENTS.md, README.md, docs/*.md). */
 export type DistilledDocs = RepoDoc[];
 
+/** Per-option info when no consensus: percent, short defense, short con. */
+export interface HumanGateOptionBreakdown {
+  optionLabel: string;
+  optionText: string;
+  percent: number;
+  defense?: string;
+  con?: string;
+}
+
 export interface HumanGateQuestion {
-  stage: "refiner" | "projgen" | "builder";
+  stage: "refiner" | "projgen" | "sds" | "builder";
   question: string;
   options: string[];
   recommendedIndex: number;
   context?: string;
+  /** When no consensus: each option with % and short defense/con. */
+  optionBreakdown?: HumanGateOptionBreakdown[];
 }
 
 export interface PipelinePolicy {
