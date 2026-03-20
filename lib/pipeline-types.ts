@@ -1,17 +1,29 @@
 /**
  * Types for the document → refined → distilled → build pipeline.
+ * Pipeline can start from intake (wizard-style) or from four docs (legacy).
  */
 
+/** Intake-based input: company, website, problem, requirements, stack. */
+export interface PipelineIntake {
+  company: string;
+  website: string;
+  projectName: string;
+  problemStatement: string;
+  functionalReqs: string;
+  languages?: string;
+  status?: string;
+  additionalNotes?: string;
+}
+
+/** Legacy: four docs pasted in (plan, requirements, PRD, research). */
 export interface PipelineInput {
-  /** Plan / execution plan text */
   plan: string;
-  /** Requirements text */
   requirements: string;
-  /** PRD text */
   prd: string;
-  /** Research text */
   research: string;
 }
+
+export type PipelineInputMode = "intake" | "documents";
 
 export interface RefinedDocs {
   prd: string;
@@ -64,19 +76,59 @@ export const CONSENSUS_MODELS = [
 ] as const;
 
 export type PipelineStageName =
-  | "input"
+  | "intake"
+  | "research"
+  | "layers"
+  | "sds"
+  | "prd"
+  | "plan"
   | "refiner"
   | "projgen"
   | "builder"
   | "finished";
 
+/** Partner research + inferred + discovered sections (from research stage). */
+export interface PipelineResearchResult {
+  partnerResearch: { summary: string; domain?: string; targetUsers?: string[]; products?: string[]; constraints?: string[]; notes?: string[]; sources?: Array<{ type: string; label: string; url?: string }> };
+  inferred: { projectType?: string; stack?: string[]; constraints?: string[]; integrations?: string[]; targetUsers?: string[]; domain?: string };
+  discoveredSections: Array<{ id: string; icon: string; label: string; sub: string; reason: string; priority: "required" | "optional"; category: string }>;
+}
+
+/** One locked SDS choice per section. */
+export interface SDSDecision {
+  sectionId: string;
+  optionIndex: number;
+  optionName: string;
+}
+
 export interface PipelineState {
   stage: PipelineStageName;
+  /** When starting from intake. */
+  intake?: PipelineIntake;
+  /** When starting from four docs (legacy). */
   input?: PipelineInput;
+  inputMode?: PipelineInputMode;
+  /** After research stage. */
+  researchResult?: PipelineResearchResult;
+  /** Merged layers (core + discovered) for SDS. */
+  proposedLayers?: PipelineResearchResult["discoveredSections"];
+  /** Locked SDS choices (consensus or human). */
+  sdsDecisions?: SDSDecision[];
+  /** Cached options per section (for SDS stage). */
+  sdsOptionsBySection?: Record<string, { recommendation: string; options: Array<{ name: string; verdict: string; reason: string }> }>;
+  /** Generated PRD (after prd stage). */
+  prd?: string;
+  /** Generated plan + optional memory bank (after plan stage). */
+  plan?: string;
+  planMemoryBank?: Record<string, string>;
+  /** Refined docs (after refiner). */
   refinedDocs?: RefinedDocs;
+  /** Repo docs (after projgen). */
   distilledDocs?: DistilledDocs;
   /** When stage is paused for human. */
   humanGate?: HumanGateQuestion;
+  /** For SDS human gate: which section we're asking about. */
+  humanGateSectionId?: string;
   /** Decisions made (for log). */
   decisionLog: Array<{
     stage: string;
@@ -89,7 +141,7 @@ export interface PipelineState {
   refinerConversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
   /** Projgen conversation (for multi-step). */
   projgenConversationHistory?: Array<{ role: "user" | "assistant"; content: string }>;
-  /** Builder output path when finished (temp dir path; client may zip/download). */
+  /** Builder output path when finished. */
   outputPath?: string;
   error?: string;
 }

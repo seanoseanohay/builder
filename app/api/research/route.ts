@@ -6,6 +6,7 @@ import {
   parseSearchResults,
   stripHtml,
 } from "@/lib/research";
+import { callOpenRouterServer } from "@/lib/openrouter-server";
 import type {
   Intake,
   Inferred,
@@ -107,7 +108,7 @@ async function fetchSearchFallback(query: string) {
 }
 
 export async function POST(request: NextRequest) {
-  let body: { intake?: Intake; apiKey?: string };
+  let body: { intake?: Intake; apiKey?: string; openRouterApiKey?: string };
 
   try {
     body = await request.json();
@@ -119,6 +120,8 @@ export async function POST(request: NextRequest) {
   const requestKey =
     request.headers.get("x-anthropic-api-key")?.trim() || body.apiKey?.trim();
   const apiKey = requestKey || process.env.ANTHROPIC_API_KEY;
+  const openRouterApiKey =
+    body.openRouterApiKey?.trim() || process.env.OPENROUTER_API_KEY;
 
   if (!intake?.company || !intake.problemStatement) {
     return NextResponse.json(
@@ -127,11 +130,11 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!apiKey) {
+  if (!apiKey && !openRouterApiKey) {
     return NextResponse.json(
       {
         error:
-          "No API key. Add your Anthropic API key in the app or configure ANTHROPIC_API_KEY.",
+          "No API key. Add your Anthropic or OpenRouter API key in the app or set ANTHROPIC_API_KEY / OPENROUTER_API_KEY.",
       },
       { status: 401 },
     );
@@ -232,7 +235,17 @@ Rules:
 - JSON only.
 `.trim();
 
-    const raw = await callClaudeJson(apiKey, systemPrompt, userPrompt);
+    const raw = openRouterApiKey
+      ? await callOpenRouterServer({
+          model: "anthropic/claude-sonnet-4",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: userPrompt },
+          ],
+          max_tokens: MAX_TOKENS,
+          apiKey: openRouterApiKey,
+        })
+      : await callClaudeJson(apiKey!, systemPrompt, userPrompt);
     const parsed = safeParseJSON<ResearchResponse>(
       raw.replace(/```json|```/gi, "").trim(),
     );

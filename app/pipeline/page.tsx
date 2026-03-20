@@ -6,20 +6,24 @@ import { getStoredOpenRouterKey, setStoredOpenRouterKey } from "@/lib/api";
 import {
   DEFAULT_POLICY,
   type PipelineState,
-  type PipelineInput,
+  type PipelineIntake,
   type PipelinePolicy,
 } from "@/lib/pipeline-types";
 import Link from "next/link";
 
-const initialInput: PipelineInput = {
-  plan: "",
-  requirements: "",
-  prd: "",
-  research: "",
+const initialIntake: PipelineIntake = {
+  company: "",
+  website: "",
+  projectName: "",
+  problemStatement: "",
+  functionalReqs: "",
+  languages: "",
+  status: "ACTIVE",
+  additionalNotes: "",
 };
 
 export default function PipelinePage() {
-  const [input, setInput] = useState(initialInput);
+  const [intake, setIntake] = useState(initialIntake);
   const [policy, setPolicy] = useState<PipelinePolicy>(DEFAULT_POLICY);
   const [openRouterKey, setOpenRouterKey] = useState("");
   const [state, setState] = useState<PipelineState | null>(null);
@@ -61,8 +65,8 @@ export default function PipelinePage() {
       setError("OpenRouter API key required. Add it above.");
       return;
     }
-    if (!input.plan.trim() || !input.requirements.trim() || !input.prd.trim() || !input.research.trim()) {
-      setError("Fill in all four inputs: Plan, Requirements, PRD, Research.");
+    if (!intake.company.trim() || !intake.problemStatement.trim() || !intake.functionalReqs.trim()) {
+      setError("Fill in at least Company, Problem statement, and Functional requirements.");
       return;
     }
     setError(null);
@@ -70,8 +74,18 @@ export default function PipelinePage() {
     setHumanAnswer("");
     try {
       const initialState: PipelineState = {
-        stage: "refiner",
-        input,
+        stage: "intake",
+        intake: {
+          ...intake,
+          company: intake.company.trim(),
+          projectName: intake.projectName.trim() || intake.company.trim(),
+          problemStatement: intake.problemStatement.trim(),
+          functionalReqs: intake.functionalReqs.trim(),
+          website: intake.website.trim(),
+          languages: intake.languages?.trim(),
+          status: intake.status || "ACTIVE",
+          additionalNotes: intake.additionalNotes?.trim(),
+        },
         decisionLog: [],
       };
       await runStep(initialState);
@@ -80,7 +94,7 @@ export default function PipelinePage() {
     } finally {
       setLoading(false);
     }
-  }, [input, apiKey, runStep]);
+  }, [intake, apiKey, runStep]);
 
   const continuePipeline = useCallback(async () => {
     if (!state) return;
@@ -149,7 +163,7 @@ export default function PipelinePage() {
           <h1>Pipeline</h1>
         </div>
         <p className="subtitle">
-          Documents → Refined → Distilled → Build. Consensus over 3–5 models; human only when below threshold.
+          Brief → Research → Layers → SDS (consensus) → PRD → Plan → Refined → Distilled → Build. Human only when consensus is below threshold.
         </p>
       </header>
 
@@ -205,19 +219,63 @@ export default function PipelinePage() {
       </section>
 
       <section className="pipeline-section">
-        <h2 className="section-title">Input documents</h2>
-        <p className="section-desc">Paste plan, requirements, PRD, and research.</p>
+        <h2 className="section-title">Input (brief)</h2>
+        <p className="section-desc">Company and project brief. Pipeline will run research, layers, SDS (with consensus), then PRD, plan, refiner, projgen, and builder.</p>
         <div className="pipeline-inputs">
-          {(["plan", "requirements", "prd", "research"] as const).map((key) => (
-            <div key={key} className="field-group">
-              <label>{key}</label>
-              <textarea
-                value={input[key]}
-                onChange={(e) => setInput((i) => ({ ...i, [key]: e.target.value }))}
-                rows={5}
-              />
-            </div>
-          ))}
+          <div className="field-group">
+            <label>Company name</label>
+            <input
+              type="text"
+              value={intake.company}
+              onChange={(e) => setIntake((i) => ({ ...i, company: e.target.value }))}
+              placeholder="Acme Inc"
+            />
+          </div>
+          <div className="field-group">
+            <label>Company website</label>
+            <input
+              type="text"
+              value={intake.website}
+              onChange={(e) => setIntake((i) => ({ ...i, website: e.target.value }))}
+              placeholder="https://acme.com"
+            />
+          </div>
+          <div className="field-group">
+            <label>Project name</label>
+            <input
+              type="text"
+              value={intake.projectName}
+              onChange={(e) => setIntake((i) => ({ ...i, projectName: e.target.value }))}
+              placeholder="Project name or leave blank to use company"
+            />
+          </div>
+          <div className="field-group">
+            <label>Problem statement</label>
+            <textarea
+              value={intake.problemStatement}
+              onChange={(e) => setIntake((i) => ({ ...i, problemStatement: e.target.value }))}
+              rows={3}
+              placeholder="What problem does this solve?"
+            />
+          </div>
+          <div className="field-group">
+            <label>Functional requirements</label>
+            <textarea
+              value={intake.functionalReqs}
+              onChange={(e) => setIntake((i) => ({ ...i, functionalReqs: e.target.value }))}
+              rows={5}
+              placeholder="List key features and requirements"
+            />
+          </div>
+          <div className="field-group">
+            <label>Required languages / stack</label>
+            <input
+              type="text"
+              value={intake.languages ?? ""}
+              onChange={(e) => setIntake((i) => ({ ...i, languages: e.target.value }))}
+              placeholder="e.g. TypeScript, React, Node"
+            />
+          </div>
         </div>
       </section>
 
